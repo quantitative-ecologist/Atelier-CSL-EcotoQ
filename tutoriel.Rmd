@@ -1,0 +1,54 @@
+---
+title: "Statistiques Avancées"
+subtitle: "28e Colloque du CSL"
+author:
+  name: "Maxime Fraser Franco"
+  affiliation: |
+    Département des Sciences Biologiques \n Université du Québec à Montréal (UQAM)
+date: "`r format(Sys.Date(), '%Y-%m-%d')`"
+output:
+  learnr::tutorial:
+    css: css/custom_css.css
+runtime: shiny_prerendered
+---
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto+Slab&family=Source+Sans+Pro:wght@300;400&display=swap');
+</style> 
+
+```{r setup, include=FALSE}
+library(learnr)
+library(shiny)
+library(fontawesome)
+```
+
+## 1. Introduction
+
+Ce tutoriel a été développé dans le cadre du 28e colloque du Chapitre Saint-Laurent, présenté le 29 Mai 2024 à l'Université Laval.
+
+Les objectifs du tutoriel sont:  
+
+1. De se familiariser avec la théorie sur les modèles hiérarchiques
+2. De reconnaître les variantes des modèles (H(G)LM, MH(G)LM)
+3. D'implémenter un modèle hiéarchique avec R
+4. d'interpréter les résultats avec l'inférence Bayésienne
+
+### Une note sur l'inférence Bayésienne
+
+L'inférence Bayésienne est une toute autre façon de penser pour la réalisation et l'interprétation d'analyses statistiques. Cela vous apparaîtra comme assez différent de ce à quoi vous êtes habitué.e.s si vous avez appris les statistiques classiques (fréquentistes). La théorie sous-jacente au théorème de Bayes et à l'inférence Bayésienne dépasse largement le cadre de ce tutoriel, donc veuillez consulter les ressources pertinentes dans la section Références. Une très bonne introduction que je ne peux recommander assez est le célèbre et incroyable livre "Statistical Rethinking" de Richard McElreath. Richard McElreath publie également l'ensemble du contenu du livre sous forme de [vidéos sur YouTube](https://www.youtube.com/watch?v=FdnMWdICdRs&list=PLDcUM9US4XdPz-KxHM4XHt7uUVGWWVSus).
+
+Dans ce tutoriel, nous effectuerons tous nos modèles en utilisant la librairie `brms`, qui est une interface R pour le langage probabiliste STAN. La librairie `brms` utilise la méthode de Monte Carlo Hamiltonienne (HMC) et l'échantillonneur (NUTS) pour estimer les paramètres des modèles. Ceux-ci sont des algorithmes spécifiques contenus dans la plus grnade famille d'estimation de Monte Carlo par chaîne de Markov (MCMC). Je vous recommande vivement de lire les vignettes de la librairie pour mieux comprendre comment fonctionne `brms` et ses capacités.
+
+En inférence Bayésienne, vous verrez toujours le terme "distribution à posteriori" (posterior distribution). La distribution à posteriori est un aspect fondamental des statistiques Bayésiennes. Elle consiste en une distribution qui informe sur la plausibilité d'un paramètre estimé par le modèle, conditionnellement aux données. Il existe de nombreuses façons d'approximer la distribution à posteriori, mais dans ce tutoriel, nous la méthode HMC + NUTS. Ainsi, rappelez-vous que chaque fois que vous voyez le terme "à posteriori" dans ce tutoriel, nous faisons référence à la distribution d'un paramètre estimé par le modèle.
+
+## 2. Jeu de données
+
+### Description
+
+### Visualisation
+
+```{r addition, exercise=TRUE}
+1 + 1
+```
+
+## 3. Les modèles hiérarchiques
