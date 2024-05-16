@@ -1,5 +1,5 @@
 ---
-title: "Statistiques Avancées"
+title: "Atelier Statistiques Avancées"
 subtitle: "28e Colloque du CSL"
 author:
   name: "Maxime Fraser Franco"
@@ -7,48 +7,338 @@ author:
     Département des Sciences Biologiques \n Université du Québec à Montréal (UQAM)
 date: "`r format(Sys.Date(), '%Y-%m-%d')`"
 output:
-  learnr::tutorial:
-    css: css/custom_css.css
-runtime: shiny_prerendered
+  rmdformats::readthedown:
+    df_print: paged
 ---
 
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto+Slab&family=Source+Sans+Pro:wght@300;400&display=swap');
-</style> 
-
-```{r setup, include=FALSE}
-library(learnr)
-library(shiny)
-library(fontawesome)
+```{r setup}
+knitr::opts_chunk$set(
+  fig.align = "center",
+  warning = FALSE,
+  message = FALSE
+)
 ```
 
-## 1. Introduction
+# 1. Introduction
 
-Ce tutoriel a été développé dans le cadre du 28e colloque du Chapitre Saint-Laurent, présenté le 29 Mai 2024 à l'Université Laval.
+## Contexte
 
-Les objectifs du tutoriel sont:  
+Ce tutoriel a été développé dans le cadre du 28e colloque du Chapitre Saint-Laurent, présenté le 29 Mai 2024 à l'Université Laval, Québec, Canada.
+
+Nous verrons les concepts de base qui vous permettront d'implémenter des modèles hiérarchiques avec le logiciel R, et d'interpréter les résultats en utilisant l'inférence Bayésienne.
+
+Les objectifs d'apprentissage sont :  
 
 1. De se familiariser avec la théorie sur les modèles hiérarchiques
 2. De reconnaître les variantes des modèles (H(G)LM, MH(G)LM)
 3. D'implémenter un modèle hiéarchique avec R
-4. d'interpréter les résultats avec l'inférence Bayésienne
+4. D'interpréter les résultats avec l'inférence Bayésienne
 
-### Une note sur l'inférence Bayésienne
+## Jeu de données
 
-L'inférence Bayésienne est une toute autre façon de penser pour la réalisation et l'interprétation d'analyses statistiques. Cela vous apparaîtra comme assez différent de ce à quoi vous êtes habitué.e.s si vous avez appris les statistiques classiques (fréquentistes). La théorie sous-jacente au théorème de Bayes et à l'inférence Bayésienne dépasse largement le cadre de ce tutoriel, donc veuillez consulter les ressources pertinentes dans la section Références. Une très bonne introduction que je ne peux recommander assez est le célèbre et incroyable livre "Statistical Rethinking" de Richard McElreath. Richard McElreath publie également l'ensemble du contenu du livre sous forme de [vidéos sur YouTube](https://www.youtube.com/watch?v=FdnMWdICdRs&list=PLDcUM9US4XdPz-KxHM4XHt7uUVGWWVSus).
+Le jeu de données que nous utiliserons pour l'atelier se nomme ADORE et provient de l'article suivant :
 
-Dans ce tutoriel, nous effectuerons tous nos modèles en utilisant la librairie `brms`, qui est une interface R pour le langage probabiliste STAN. La librairie `brms` utilise la méthode de Monte Carlo Hamiltonienne (HMC) et l'échantillonneur (NUTS) pour estimer les paramètres des modèles. Ceux-ci sont des algorithmes spécifiques contenus dans la plus grnade famille d'estimation de Monte Carlo par chaîne de Markov (MCMC). Je vous recommande vivement de lire les vignettes de la librairie pour mieux comprendre comment fonctionne `brms` et ses capacités.
+[Schür, C., Gasser, L., Perez-Cruz, F., Schirmer, K., Baity-Jesi, M. (2023). A benchmark dataset for machine learning in ecotoxicology. *Scientific Data*, 10:718. https://doi.org/10.1038/s41597-023-02612-2](https://www.nature.com/articles/s41597-023-02612-2)
 
-En inférence Bayésienne, vous verrez toujours le terme "distribution à posteriori" (posterior distribution). La distribution à posteriori est un aspect fondamental des statistiques Bayésiennes. Elle consiste en une distribution qui informe sur la plausibilité d'un paramètre estimé par le modèle, conditionnellement aux données. Il existe de nombreuses façons d'approximer la distribution à posteriori, mais dans ce tutoriel, nous la méthode HMC + NUTS. Ainsi, rappelez-vous que chaque fois que vous voyez le terme "à posteriori" dans ce tutoriel, nous faisons référence à la distribution d'un paramètre estimé par le modèle.
+Vous pouvez trouver les données originales sur le portail du [Eawag Research Data Institutional Collection](https://opendata.eawag.ch/dataset/adore).
 
-## 2. Jeu de données
+Le jeu de données ADORE contient une myriade d'informations sur des expériences écotoxicologiques effectuées sur des espèces de poisson, de crustacés, et d'algues. L'objectif des données ADORE est de concerter des informations sur la toxicité aquatique accrue de différents composés chimiques sur des espèces pour faire de la modélisation prédictive.
 
-### Description
+# 2. Une note sur l'inférence Bayésienne
 
-### Visualisation
+L'inférence Bayésienne est une toute autre façon de penser pour la réalisation et l'interprétation d'analyses statistiques. Cela vous apparaîtra comme assez différent de ce à quoi vous êtes habitué.e.s si vous avez appris les statistiques classiques (fréquentistes).
 
-```{r addition, exercise=TRUE}
-1 + 1
+## Le théorème de Bayes
+
+En inférence Bayésienne, on se sert de nos connaissances à priori ainsi que des données pour faire de l'inférence. Nous pouvons représenter ceci avec le théorème de Bayes qui va comme suit :
+
+$$P(H \mid E) = \frac{P(H) \ P(E \mid H)}{P(E)}$$
+Pour résumer l'équation :  
+
+- $P(H)$ est la probabilité d'observer notre hypothèse, c'est la distribution à priori
+- $P(E)$ est la probabilité d'observer de nouvelles preuves sous toutes les hypothèses possibles
+- $P(H \mid E)$ est la probabilité d'observer notre hypothèse selon l'évidence, c'est la distribution à postériori
+- $P(E \mid H)$ est la probabilité d'observer l'évidence si notre hypothèse est vraie, c'est la distribution de vraisemblance
+
+
+Plus intuitivement, on peut aussi l'illustrer comme suit :
+
+```{r, echo = FALSE, out.width = "100%", fig.align = "center", fig.cap = "Illustration du théorème de Bayes issue de Yanagisawa et al. 2019"}
+knitr::include_graphics("images/bayes-inf.png")
 ```
 
-## 3. Les modèles hiérarchiques
+**Ainsi, l'inférence Bayésienne est une approche où l'on adapte nos connaissances (à posteriori) à partir de nos hypothèses (connaissances à priori) et des preuves que nous avons.**
+
+La distribution à posteriori est donc l'élément central que nous cherchons à estimer. Rappelez-vous que chaque fois que vous voyez le terme "à posteriori" dans ce tutoriel, nous faisons référence à la distribution d'un paramètre d'intérêt estimé par le modèle.
+
+En prime, voici un lien vers une application qui vous permet de jouer avec ces trois distributions pour mieux comprendre comment les connaissances à priori et les preuves modifient la distribution à posteriori : 
+
+https://micl.shinyapps.io/prior2post/
+
+## Méthode d'estimation
+
+Il existe de nombreuses façons d'approximer la distribution à posteriori. Dans ce tutoriel, nous utiliserons la méthode de Monte Carlo Hamiltonienne (HMC) et l'échantillonneur No-U-Turn (NUTS) pour estimer la distribution à posteriori. Ce sont des algorithmes spécifiques dans la grande famille d'estimation de Monte Carlo par chaîne de Markov (MCMC). 
+
+Pour ce faire nous effectuerons tous nos modèles avec la librairie `brms`, une interface R pour le [langage probabiliste STAN](https://mc-stan.org/). La librairie `brms` utilise la méthode HMC et NUTS pour estimer les paramètres. Je vous recommande vivement de lire [les vignettes de la librairie](https://paul-buerkner.github.io/brms/articles/index.html) pour mieux comprendre les capacités et le fonctionnement de `brms`.
+
+## Les avantages
+
+L'inférence Bayésienne comporte certains avantages par rapport à l'approche statistique fréquentiste.
+
+- Elle met l'accent sur la distribution et l'incertitude au lieu d'estimés uniques
+- Elle permet une interprétation plus naturelle (probabiliste)
+- On peut facilement critiquer les modèles
+
+## Pour aller plus loin
+
+La théorie sous-jacente au théorème de Bayes dépasse largement le cadre de ce tutoriel, donc veuillez consulter les ressources pertinentes dans la section Références. Une très bonne introduction que je ne peux recommander assez est l'excellent livre "Statistical Rethinking" de Richard McElreath. Richard McElreath publie également l'ensemble du contenu du livre sous forme de [vidéos sur YouTube](https://www.youtube.com/watch?v=FdnMWdICdRs&list=PLDcUM9US4XdPz-KxHM4XHt7uUVGWWVSus).
+
+# 3. Structure des données
+
+## Description générale
+
+Pour l'atelier, nous utiliserons une version des données nettoyées et prêtes pour l'analyse qui se trouvent sur [ce dépôt GitHub](https://github.com/quantitative-ecologist/Atelier-CSL-EcotoQ) dans le dossier [data](https://github.com/quantitative-ecologist/Atelier-CSL-EcotoQ/tree/main/data). Ce dépôt a été préparé spécifiquement pour l'atelier.
+
+Voici les spécifications :
+
+1. Le premier jeu de données servira à faire des modèles hiérarchiques univariés que nous appliquerons aux données d'animaux seulement. Nous l'appelerons `anim`.
+
+2. Le second jeu de données nous servira à faire des modèles hiérarchiques multivariés que nous appliquerons aux données d'algues. Nous l'appelerons `algue`.
+
+Importons les données à partir du dépôt GitHub de l'atelier :
+
+```{r donnees}
+github <- "https://raw.githubusercontent.com/quantitative-ecologist"
+depot <- "Atelier-CSL-EcotoQ"
+dossier <- "main/data"
+
+anim <- read.csv(
+  file.path(github, depot, dossier, "animal_dat.csv"),
+  stringsAsFactors = TRUE
+)
+
+algue <- read.csv(
+  file.path(github, depot, dossier, "algae_dat.csv"),
+  stringsAsFactors = TRUE
+)
+```
+
+## Variables
+
+Une description détaillée des variables du jeu de données est présentée en Annexe de l'article de [Schür et al. (2023)](https://www.nature.com/articles/s41597-023-02612-2).
+
+Dans le cadre de cet atelier, nous utiliserons un échantillon de ces variables.
+
+### Variables sur les résultats expérimentaux (Y)
+
+- `result_effect`: le groupe d'effet de l'expérience, soit, mortalité (`MOR`), physiologie (`PHY`), croissance (`GRO`), ou populationel (`POP`).
+- `result_obs_duration_mean`: la durée d'exposition en heure codée comme `24`, `48`, `72`, et `96` heures
+- `result_conc1_mean_binary`: si la dose est moins toxique (`0`) ou plus toxique (`1`)
+- `result_conc1_type`: le type de concentration, soit, ingrédient actif (`A`), formulation (`F`), ou total (`T`)
+- `result_conc_mean`: la concentration effective moyenne en mg/L
+- `result_conc_mean_log`: le log de la concentration effective moyenne
+
+### Variables sur les espèces (X)
+
+- `tax_group`: le groupe taxonomique soit, `fish`, `crusta`, `algae`
+- `tax_gs`: le nom de l'espèce étudiée codée comme `Genre_épithète`
+- `tax_eco_food`: la position trophique de l'espèce. On y trouve les Bactérivores, Carnivores, Détritivores, Herbivores, Omnivores, Planktivores, Charognards, et les Parasites, toutes encodées avec la première lettre de leur nom
+- `tax_lh_amd`: la longévité de l'espèce en jours
+- `tax_lh_licm`: la taille corporelle ultime en cm
+- `tax_lh_ri#/d`: le taux reproducteur en nombre d'individus produits par jour
+
+### Variables liées aux conditions expérimentales (X)
+
+- `test_exposure_type`: le type d'exposition, soit, statique (`S`), en flux continu d'eau (`F`), en flux continu d'eau avec renouvellement (`R`), ou non rapporté (`NR`).
+- `test_media_type`: le type de médium utilisé, soit eau fraîche (`FW`) ou eau salée (`SW`)
+- `media_ph_mean`: le pH moyen du medium
+- `media_temperature_mean`: la température moyenne du medium en degrés Celsius
+- `chem_name`: le nom du composé chimique à l'étude
+
+Pour l'atelier, nous allons nous intéresser à modéliser les variables liées aux **résultats expérimentaux**. Ce seront donc nos variables réponse ($Y$). Nous testerons comment ces variables changent en fonction des variables liées aux espèces ainsi qu'aux conditions expérimentales ($X$)
+
+# 4. Exploration des données
+
+## Distribution de la concentration effective
+
+Commençons par évaluer la distribution de la variable réponse, qui est le log de la concentration effective moyenne. Nous allons faire nos graphiques avec la librairie `ggplot2` et `ggpubr`.
+
+```{r explo1}
+library(ggplot2)
+library(ggpubr)
+
+p1 <- ggplot(data = anim) +
+  geom_histogram(
+    aes(x = result_conc1_mean_log),
+    color = "black", fill = "#440154"
+    ) +
+  ggtitle("Animaux") +
+  ylab("Compte") +
+  xlab("log(concentration moyenne (mg/L))") +
+  theme_bw(base_size = 14) +
+  theme(panel.grid = element_blank())
+  
+p2 <- ggplot(data = algue) +
+  geom_histogram(
+    aes(x = result_conc1_mean_log),
+    color = "black", fill = "#7ad151"
+    ) +
+  ggtitle("Algues") +
+  ylab("Compte") +
+  xlab("log(concentration moyenne (mg/L))") +
+  theme_bw(base_size = 14) +
+  theme(panel.grid = element_blank())
+```
+
+Affichons les graphiques.
+
+```{r plot1, fig.height=4, fig.width=8}
+ggarrange(p1, p2)
+```
+
+## Concentration effective selon l'espèce
+
+Vérifions si les concentrations effectives varient selon l'espèce.
+
+```{r explo2}
+p3 <- ggplot(data = anim) +
+  geom_boxplot(
+    aes(
+      x = result_conc1_mean_log, 
+      y = tax_gs, 
+      fill = tax_group
+    ),
+    color = "black"
+  ) +
+  ggtitle("Animaux") +
+  ylab("Espèce") +
+  xlab("log(concentration moyenne (mg/L))") +
+  scale_fill_manual(values = c("#21918c", "#440154")) +
+  scale_x_continuous(
+    breaks = seq(-8, 8, 4),
+    limits = c(-9, 9)) +
+  theme_bw(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "top"
+  )
+
+p4 <- ggplot(data = algue) +
+  geom_boxplot(
+    aes(x = result_conc1_mean_log, y = tax_gs),
+    color = "black", fill = "#7ad151"
+  ) +
+  ggtitle("Algues") +
+  ylab("Espèce") +
+  xlab("log(concentration moyenne (mg/L))") +
+  scale_x_continuous(
+    breaks = seq(-4, 4, 2),
+    limits = c(-5, 5)) +
+  theme_bw(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "top"
+  )
+```
+
+On affiche les graphiques.
+
+```{r plot2, fig.height=6, fig.width=8}
+ggarrange(p3, p4, common.legend = TRUE)
+```
+
+## Concentration effective selon la position trophique
+
+Pour les animaux, on pourrait aussi se demander si la concentration varie selon la position trophique, sachant que l'alimentation pourrait influencer l'exposition aux contaminants.
+
+```{r explo3}
+p5 <- ggplot(data = anim) +
+  geom_boxplot(
+    aes(
+      x = result_conc1_mean_log,
+      y = tax_eco_food,
+      fill = tax_group
+    ),
+    color = "black"
+  ) +
+  ggtitle("Animaux") +
+  ylab("Position trophique") +
+  xlab("log(concentration moyenne (mg/L))") +
+  scale_fill_manual(values = c("#21918c", "#440154")) +
+  scale_x_continuous(
+    breaks = seq(-8, 8, 4),
+    limits = c(-9, 9)) +
+  theme_bw(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "top"
+  )
+```
+
+On affiche le graphique.
+
+```{r plot3, fig.height=6, fig.width=6}
+p5
+```
+
+La variation semble un peu plus faible. On pourrait supposer que celà est dû au fait que les animaux sont exposés aux contaminants en conditions contrôlées, et non dans la nature.
+
+## Concentration effective selon l'exposition
+
+Finalement, on peut aussi se douter que le type d'exposition devrait influencer comment la concentration effective change.
+
+```{r explo4}
+p6 <- ggplot(data = anim) +
+  geom_boxplot(
+    aes(
+      x = result_conc1_mean_log,
+      y = test_exposure_type,
+      fill = tax_group
+    ),
+    color = "black"
+  ) +
+  ggtitle("Animaux") +
+  ylab("Type d'exposition") +
+  xlab("log(concentration moyenne (mg/L))") +
+  scale_fill_manual(values = c("#21918c", "#440154")) +
+  scale_x_continuous(
+    breaks = seq(-8, 8, 4),
+    limits = c(-9, 9)) +
+  theme_bw(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "top"
+  )
+
+p7 <- ggplot(data = algue) +
+  geom_boxplot(
+    aes(
+      x = result_conc1_mean_log,
+      y = test_exposure_type
+    ),
+    color = "black", fill = "#7ad151"
+  ) +
+  ggtitle("Algues") +
+  ylab("Type d'exposition") +
+  xlab("log(concentration moyenne (mg/L))") +
+  scale_x_continuous(
+    breaks = seq(-4, 4, 2),
+    limits = c(-5, 5)) +
+  theme_bw(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "top"
+  )
+```
+
+On affiche les graphiques.
+
+```{r plot4, fig.height=5, fig.width=8}
+ggarrange(p6, p7, common.legend = TRUE)
+```
+
+# 5. Les modèles hiérarchiques
