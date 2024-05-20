@@ -1,6 +1,6 @@
 ---
 title: "Atelier Statistiques Avancées"
-subtitle: "28e Colloque du CSL"
+subtitle: "28e Colloque du Chapitre Saint-Laurent"
 author:
   name: "Maxime Fraser Franco"
   affiliation: |
@@ -9,14 +9,20 @@ date: "`r format(Sys.Date(), '%Y-%m-%d')`"
 output:
   rmdformats::readthedown:
     df_print: paged
+    code_folding: show
 ---
 
-```{r setup}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   fig.align = "center",
   warning = FALSE,
   message = FALSE
 )
+
+library(data.table)
+library(brms)
+library(ggplot2)
+library(ggpubr)
 ```
 
 # 1. Introduction
@@ -112,12 +118,12 @@ github <- "https://raw.githubusercontent.com/quantitative-ecologist"
 depot <- "Atelier-CSL-EcotoQ"
 dossier <- "main/data"
 
-anim <- read.csv(
+anim <- fread(
   file.path(github, depot, dossier, "animal_dat.csv"),
   stringsAsFactors = TRUE
 )
 
-algue <- read.csv(
+algue <- fread(
   file.path(github, depot, dossier, "algae_dat.csv"),
   stringsAsFactors = TRUE
 )
@@ -163,26 +169,23 @@ Pour l'atelier, nous allons nous intéresser à modéliser les variables liées 
 
 Commençons par évaluer la distribution de la variable réponse, qui est le log de la concentration effective moyenne. Nous allons faire nos graphiques avec la librairie `ggplot2` et `ggpubr`.
 
-```{r explo1}
-library(ggplot2)
-library(ggpubr)
-
+```{r explo1, cache=TRUE, class.source = "fold-hide"}
 p1 <- ggplot(data = anim) +
   geom_histogram(
     aes(x = result_conc1_mean_log),
     color = "black", fill = "#440154"
-    ) +
+  ) +
   ggtitle("Animaux") +
   ylab("Compte") +
   xlab("log(concentration moyenne (mg/L))") +
   theme_bw(base_size = 14) +
   theme(panel.grid = element_blank())
-  
+
 p2 <- ggplot(data = algue) +
   geom_histogram(
     aes(x = result_conc1_mean_log),
     color = "black", fill = "#7ad151"
-    ) +
+  ) +
   ggtitle("Algues") +
   ylab("Compte") +
   xlab("log(concentration moyenne (mg/L))") +
@@ -192,7 +195,7 @@ p2 <- ggplot(data = algue) +
 
 Affichons les graphiques.
 
-```{r plot1, fig.height=4, fig.width=8}
+```{r plot1, fig.height=4, fig.width=8, cache=TRUE, class.source = "fold-hide"}
 ggarrange(p1, p2)
 ```
 
@@ -200,12 +203,12 @@ ggarrange(p1, p2)
 
 Vérifions si les concentrations effectives varient selon l'espèce.
 
-```{r explo2}
+```{r explo2, cache=TRUE, class.source = "fold-hide"}
 p3 <- ggplot(data = anim) +
   geom_boxplot(
     aes(
-      x = result_conc1_mean_log, 
-      y = tax_gs, 
+      x = result_conc1_mean_log,
+      y = tax_gs,
       fill = tax_group
     ),
     color = "black"
@@ -216,7 +219,8 @@ p3 <- ggplot(data = anim) +
   scale_fill_manual(values = c("#21918c", "#440154")) +
   scale_x_continuous(
     breaks = seq(-8, 8, 4),
-    limits = c(-9, 9)) +
+    limits = c(-9, 9)
+  ) +
   theme_bw(base_size = 14) +
   theme(
     panel.grid = element_blank(),
@@ -235,7 +239,8 @@ p4 <- ggplot(data = algue) +
   xlab("log(concentration moyenne (mg/L))") +
   scale_x_continuous(
     breaks = seq(-4, 4, 2),
-    limits = c(-5, 5)) +
+    limits = c(-5, 5)
+  ) +
   theme_bw(base_size = 14) +
   theme(
     panel.grid = element_blank(),
@@ -247,7 +252,7 @@ p4 <- ggplot(data = algue) +
 
 On affiche les graphiques.
 
-```{r plot2, fig.height=6, fig.width=8}
+```{r plot2, fig.height=6, fig.width=8, cache=TRUE, class.source = "fold-hide"}
 ggarrange(p3, p4, common.legend = TRUE)
 ```
 
@@ -255,7 +260,7 @@ ggarrange(p3, p4, common.legend = TRUE)
 
 Pour les animaux, on pourrait aussi se demander si la concentration varie selon la position trophique, sachant que l'alimentation pourrait influencer l'exposition aux contaminants.
 
-```{r explo3}
+```{r explo3, cache=TRUE, class.source = "fold-hide"}
 p5 <- ggplot(data = anim) +
   geom_boxplot(
     aes(
@@ -271,7 +276,8 @@ p5 <- ggplot(data = anim) +
   scale_fill_manual(values = c("#21918c", "#440154")) +
   scale_x_continuous(
     breaks = seq(-8, 8, 4),
-    limits = c(-9, 9)) +
+    limits = c(-9, 9)
+  ) +
   theme_bw(base_size = 14) +
   theme(
     panel.grid = element_blank(),
@@ -281,7 +287,7 @@ p5 <- ggplot(data = anim) +
 
 On affiche le graphique.
 
-```{r plot3, fig.height=6, fig.width=6}
+```{r plot3, fig.height=6, fig.width=6, cache=TRUE, class.source = "fold-hide"}
 p5
 ```
 
@@ -291,7 +297,7 @@ La variation semble un peu plus faible. On pourrait supposer que celà est dû a
 
 Finalement, on peut aussi se douter que le type d'exposition devrait influencer comment la concentration effective change.
 
-```{r explo4}
+```{r explo4, cache=TRUE, class.source = "fold-hide"}
 p6 <- ggplot(data = anim) +
   geom_boxplot(
     aes(
@@ -307,7 +313,8 @@ p6 <- ggplot(data = anim) +
   scale_fill_manual(values = c("#21918c", "#440154")) +
   scale_x_continuous(
     breaks = seq(-8, 8, 4),
-    limits = c(-9, 9)) +
+    limits = c(-9, 9)
+  ) +
   theme_bw(base_size = 14) +
   theme(
     panel.grid = element_blank(),
@@ -327,7 +334,8 @@ p7 <- ggplot(data = algue) +
   xlab("log(concentration moyenne (mg/L))") +
   scale_x_continuous(
     breaks = seq(-4, 4, 2),
-    limits = c(-5, 5)) +
+    limits = c(-5, 5)
+  ) +
   theme_bw(base_size = 14) +
   theme(
     panel.grid = element_blank(),
@@ -337,8 +345,173 @@ p7 <- ggplot(data = algue) +
 
 On affiche les graphiques.
 
-```{r plot4, fig.height=5, fig.width=8}
+```{r plot4, fig.height=5, fig.width=8, cache=TRUE, class.source = "fold-hide"}
 ggarrange(p6, p7, common.legend = TRUE)
 ```
 
-# 5. Les modèles hiérarchiques
+## Sommaire de l'exploration de données
+
+Les vérifications de nos données nous indiquent qu'il semble y avoir une structure hiérarchique dans nos données. En termes simples, cela signifie qu'il semble y avoir de la variation dans les concentrations effectives entre les différents groupes que nous avons vu.
+
+Les modèles hiérarchiques nous permettront donc de modéliser cette variation afin d'en tenir compte. Nous verrons celà à la section 6.
+
+# 5. Rappel sur les modèles linéaires
+
+## Les bases
+
+L'objectif d'un modèle linéaire est de calculer des prédictions ($\hat{Y}$) d'une variable $Y$ tout en minimisant l'écart entre les observations et les prédictions.
+
+Au travers votre parcours, vous avez sûrement vu différents types de modèles où on utilise des variables explicatives $X_i$ pour prédire une variable $Y$ (ex. ANOVA, régression, ANCOVA). Par exemple, une régression linéaire peut s'écrire avec cette équation :
+
+$$Y = X\beta+\epsilon$$
+
+Où : 
+
+- $Y$ est le vecteur des valeurs observées (c.-à.-d. la variable réponse)
+- $X$ est la matrice de variables explicatives (incluant l'ordonnée à l'origine)
+- $\beta$ est le vecteur de coefficients
+- $\epsilon$ est le vecteur des résidus
+
+Pour interpréter les résultats d'un modèle linéaire, il est essentiel que celui-ci respecte **les conditions d'application** suivantes :
+
+**1.** **Linéarité**: la relation entre $Y$ et $X$ est linéaire.
+**2.** **Indépendance**: les observations sont indépendantes l'une de l'autre.
+**3.** **Homoscédasticité**: la variance des résidus est homogène le long des valeurs prédites.
+**3.** **Normalité des résidus**: les résidus suivent une distribution Gaussienne.
+
+## Limites des modèles linéaires
+
+Une des limites majeures des modèles linéaires classiques est qu'ils ne peuvent s'ajuster à des variables réponses où les résidus ne suivent pas une distribution non-Gaussienne.
+
+Cette situation est particulièrement commune lorsqu'on analyse des données biologiques, qui ont tendance à suivre d'autres types de distribution.
+
+Dans la section suivante, nous verrons comment les modèles linéaires généralisés nous permettent de palier à ce problème en modélisant spécifiquement la nature des résidus d'une variable $Y$.
+
+# 6. Modèles linéaires généralisés
+
+## Familles de distribution
+
+### Exemple avec distribution binomiale
+
+Montrer le graphique où on a les comptes de 1 et de 0 et montrer que la droite peut dépasser. On doit donc établir une limite inférieure et supérieure en spécifiant la distribution binomiale.
+
+```{r plot5, fig.height=4, fig.width=5, cache=TRUE, class.source = "fold-hide"}
+ggplot(
+  data = anim,
+  aes(x = media_temperature_mean, y = result_conc1_mean_binary)
+) +
+  geom_point(alpha = 0.05) +
+  geom_abline(
+    intercept = -0.5, slope = 0.05,
+    color = "dodgerblue", linewidth = 1
+  ) +
+  ylab("Niveau de toxicité") +
+  xlab("Température moyenne du médium") +
+  scale_y_continuous(
+    breaks = seq(-0.5, 1.5, 0.5),
+    limits = c(-0.5, 1.5)
+  ) +
+  theme_bw(base_size = 14) +
+  theme(panel.grid = element_blank())
+```
+
+## Fonction de lien
+
+
+## Un exemple: GLM binomial
+
+Aussi appelé régression logistique
+
+On normalise les variables explicatives pour faciliter l'interprétation.
+
+```{r}
+standardize <- function(x) {
+  (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+}
+
+anim[
+  , c("Ztax_lh_amd", "Zmedia_temperature_mean") := lapply(
+    .SD,
+    standardize
+  )
+  , .SDcols = c("tax_lh_amd", "media_temperature_mean")
+]
+```
+
+Définir la formule
+
+```{r}
+form1 <- brmsformula(
+  result_conc1_mean_binary ~
+  test_exposure_type +
+  Ztax_lh_amd +
+  Zmedia_temperature_mean
+)
+```
+
+```{r glm1, cache=TRUE}
+glm1 <- brm(
+  # La formule et la famille
+  formula = form1,
+  family = bernoulli(link = "logit"),
+  
+  # Les paramètres d'itérations pour le MCMC
+  iter = 2000,
+  warmup = 1000,
+  thin = 1,
+  chains = 4,
+  
+  # Paramètres pour accélérer les calculs
+  threads = threading(3),
+  backend = "cmdstanr",
+  
+  # Reproductibilité et paramètres de contrôle
+  seed = 123,
+  control = list(adapt_delta = 0.95),
+  
+  # Distributions à priori
+  #prior = priors,
+  sample_prior = TRUE,
+  
+  # Données
+  data = anim
+)
+```
+
+```{r}
+glm1_t <- data.table(
+  round(summary(glm1)$fixed[, c(1, 3, 4)], digits = 3),
+  keep.rownames = TRUE
+)
+setnames(glm1_t, old = "rn", new = "Parameter")
+
+knitr::kable(glm1_t)
+```
+
+# 7. Modèles linéaires (généralisés) hiérarchiques
+
+problème de plusieurs paramètres quand on a plusieurs facteurs
+
+Biological and ecological data are often messy. Most of the time there is an inherent structure to data (i.e. single observations are not always independent), relationships between variables of interest might differ depending on grouping factors like species, and more often than not sample sizes are low, making it difficult to fit models that require many parameters to be estimated.
+
+# X. Informations complémentaires
+
+## Additional checks
+
+While the model verifications that we just did are probably among the most important ones, they cover only a small portion of the checks that you should perform to ensure that your model has been correctly specified. To go further, here is a list of useful links for additional checks : 
+
+- [MCMC diagnostics](https://mc-stan.org/bayesplot/articles/visual-mcmc-diagnostics.html) with the `bayesplot` package
+- [Additional posterior predictive checks](https://mc-stan.org/bayesplot/articles/graphical-ppcs.html) with the `bayesplot` package
+- [Additional residuals inspections](http://mjskay.github.io/tidybayes/articles/tidybayes-residuals.html) with the `tidybayes` package. For instance, you could inspect the relationship between the residuals and your fixed effects to see if the model failed at describing some features. This will be important for biological interpretations.
+- [Leave-one-out cross-validation](https://link.springer.com/article/10.1007/s11222-016-9696-4) using Pareto-smoothed importance sampling for predictive performance and model comparisons. For important references consult the [loo FAQ](https://avehtari.github.io/modelselection/CV-FAQ.html), [the roaches model example](https://avehtari.github.io/modelselection/roaches.html), and the [loo package vignette](http://mc-stan.org/loo/articles/index.html)
+
+Moreover, note that MCMC estimation can come with different convergence problems. Those problems can arise from different processes, but `brms` (and other packages using MCMC) should print warnings outlining the potential problems after the model has finished running. Here is a [useful link](https://mc-stan.org/misc/warnings.html) describing each of those problems and their solutions.
+
+
+# X. Paramètres sytème
+
+Voici les informations minimales de mon système pour reproduire les analyses avec les mêmes versions de R ainsi que les librairies.
+
+```{r sessionInfo}
+sessionInfo()
+```
