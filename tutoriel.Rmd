@@ -10,6 +10,15 @@ output:
   rmdformats::readthedown:
     df_print: paged
     code_folding: show
+bibliography: refs.bib
+nocite: |
+  @McElreath2020
+  @Burkner2017
+  @Burkner2018
+  @Piironen.Vehtari2017
+  @aczelDiscussionPointsBayesian2020
+  @kruschkeBayesianAnalysisReporting2021
+  @Vehtari.etal2017
 ---
 
 ```{r setup, include=FALSE}
@@ -21,6 +30,7 @@ knitr::opts_chunk$set(
 
 library(data.table)
 library(brms)
+library(bayesplot)
 library(ggplot2)
 library(ggpubr)
 ```
@@ -372,12 +382,12 @@ Où :
 - $\beta$ est le vecteur de coefficients
 - $\epsilon$ est le vecteur des résidus
 
-Pour interpréter les résultats d'un modèle linéaire, il est essentiel que celui-ci respecte **les conditions d'application** suivantes :
+Pour interpréter les résultats d'un modèle linéaire, il est essentiel que celui-ci respecte **les conditions d'application** suivantes :  
 
-**1.** **Linéarité**: la relation entre $Y$ et $X$ est linéaire.
-**2.** **Indépendance**: les observations sont indépendantes l'une de l'autre.
-**3.** **Homoscédasticité**: la variance des résidus est homogène le long des valeurs prédites.
-**3.** **Normalité des résidus**: les résidus suivent une distribution Gaussienne.
+1. **Linéarité**: la relation entre $Y$ et $X$ est linéaire.
+2. **Indépendance**: les observations sont indépendantes l'une de l'autre.
+3. **Homoscédasticité**: la variance des résidus est homogène le long des valeurs prédites.
+3. **Normalité des résidus**: les résidus suivent une distribution Gaussienne.
 
 ## Limites des modèles linéaires
 
@@ -422,6 +432,8 @@ ggplot(
 
 Aussi appelé régression logistique
 
+### Construction du modèle
+
 On normalise les variables explicatives pour faciliter l'interprétation.
 
 ```{r}
@@ -449,6 +461,16 @@ form1 <- brmsformula(
 )
 ```
 
+### Estimation des paramètres
+
+On peut rouler en parallèle...
+
+```{r}
+parallel::detectCores()
+```
+
+Explique MCMC pour iter warmup et thin + chaînes...
+
 ```{r glm1, cache=TRUE}
 glm1 <- brm(
   # La formule et la famille
@@ -462,6 +484,7 @@ glm1 <- brm(
   chains = 4,
   
   # Paramètres pour accélérer les calculs
+  # Utiliser seulement si vous avez plusieurs coeurs
   threads = threading(3),
   backend = "cmdstanr",
   
@@ -478,15 +501,76 @@ glm1 <- brm(
 )
 ```
 
+On créé un dossier où nous allons sauvegarder le modèle
+
+```{r}
+chemin <- file.path(getwd(), "outputs")
+dir.create(chemin)
+```
+
+On sauvegarde le modèle en format `.rds` qui pourra facilement être réimporté dans la session au besoin.
+
+```{r}
+saveRDS(
+  object = glm1,
+  file = file.path(chemin, "glm1.rds")
+)
+```
+
+Par défaut, la fonction `summary()` dans `brms` rapporte la moyenne de la distribution postérieure avec les intervales de comptabilité inférieurs et supérieurs à 95%.
+
 ```{r}
 glm1_t <- data.table(
-  round(summary(glm1)$fixed[, c(1, 3, 4)], digits = 3),
+  round(summary(glm1)$fixed, digits = 3),
   keep.rownames = TRUE
 )
 setnames(glm1_t, old = "rn", new = "Parameter")
 
-knitr::kable(glm1_t)
+knitr::kable(glm1_t[, c(1, 2, 4, 5)])
 ```
+
+
+### Vérifications du modèle
+
+Extraire les distributions à posteriori.
+
+```{r}
+params <- as_draws_df(
+  glm1, add_chain = TRUE,
+  regex = TRUE
+)
+```
+
+#### Convergence des MCMC
+
+Graphiques de type "trace plot"
+
+```{r}
+bayesplot::mcmc_trace(
+  params,
+  regex_pars = "b",
+  np = nuts_params(glm1)
+)
+```
+
+Rhat et tailles d'échantillons effectives
+
+```{r}
+glm1_t[, c(6:8)]
+```
+
+```{r}
+pp_check(glm1)
+```
+
+#### Ajustement du modèle
+
+
+
+### Interprétations
+
+
+
 
 # 7. Modèles linéaires (généralisés) hiérarchiques
 
@@ -507,6 +591,9 @@ While the model verifications that we just did are probably among the most impor
 
 Moreover, note that MCMC estimation can come with different convergence problems. Those problems can arise from different processes, but `brms` (and other packages using MCMC) should print warnings outlining the potential problems after the model has finished running. Here is a [useful link](https://mc-stan.org/misc/warnings.html) describing each of those problems and their solutions.
 
+# References
+
+<div id="refs"></div>
 
 # X. Paramètres sytème
 
