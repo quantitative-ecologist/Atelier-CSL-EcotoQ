@@ -33,6 +33,7 @@ library(brms)
 library(bayesplot)
 library(ggplot2)
 library(ggpubr)
+library(knitr)
 ```
 
 # 1. Introduction
@@ -382,7 +383,71 @@ Où :
 - $\beta$ est le vecteur de coefficients
 - $\epsilon$ est le vecteur des résidus
 
-Pour interpréter les résultats d'un modèle linéaire, il est essentiel que celui-ci respecte **les conditions d'application** suivantes :  
+Visuellement, on peut représenter ce modèle avec la figure suivante :
+
+```{r plot5, fig.height=5, fig.width=6, echo=FALSE, cache = TRUE}
+# Simulate data
+set.seed(123)
+n <- 120
+rho <- 0.5
+x  <- rnorm(n = n, mean = 10, sd = 5)
+x <- ifelse(x < 0, 0, x)
+y  <- (rho * x) + sqrt(1 - rho * rho) * rnorm(n = n, mean = 10, sd = 5)
+y <- ifelse(y < 0, 0, y)
+
+# Combine into a data frame
+data <- data.frame(x = x, y = y)
+
+# Fit model and plot
+fit <- lm(formula = y ~ x, data = data)
+data$predicted <- predict(fit)
+
+# Get the model coefficients
+coefficients <- coef(fit)
+intercept <- round(coefficients[1], 2)
+slope <- round(coefficients[2], 2)
+r2 <- format(round(summary(fit)$adj.r.squared, 2), nsmall = 2)
+
+# Create the equation string
+equation <- paste0("Y = ", intercept, " + ", slope, " * X")
+r2_p <- paste0("R² ajusté = ", r2)
+
+ggplot(data, aes(y = y, x = x)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "dodgerblue") +
+  #geom_abline(intercept = coefficients[1], slope = coefficients[2]) +
+  geom_segment(
+    aes(xend = x, yend = predicted),
+    color = "#6a6a6a",
+    linetype = "dashed"
+  ) +
+  annotate(
+    "text",
+    x = min(data$x), y = max(data$y),
+    label = equation, hjust = 0,
+    size = 4, color = "#646262"
+  ) +
+  annotate(
+    "text",
+    x = min(data$x), y = max(data$y) - 2,
+    label = r2_p, hjust = 0,
+    size = 4, color = "#646262"
+  ) +
+  ylab("Y") +
+  xlab("X") +
+  scale_y_continuous(
+    breaks = seq(0, 32, 8),
+    limits = c(0, 34)
+  ) +
+  scale_x_continuous(
+    breaks = seq(0, 20, 5),
+    limits = c(0, 21)
+  ) +
+  theme_bw(base_size = 14) +
+  theme(panel.grid = element_blank())
+```
+
+Pour interpréter les résultats d'un modèle linéaire, il est essentiel que celui-ci respecte **ces conditions d'application** :  
 
 1. **Linéarité**: la relation entre $Y$ et $X$ est linéaire.
 2. **Indépendance**: les observations sont indépendantes l'une de l'autre.
@@ -391,50 +456,315 @@ Pour interpréter les résultats d'un modèle linéaire, il est essentiel que ce
 
 ## Limites des modèles linéaires
 
-Une des limites majeures des modèles linéaires classiques est qu'ils ne peuvent s'ajuster à des variables réponses où les résidus ne suivent pas une distribution non-Gaussienne.
+Une des limites majeures des modèles linéaires classiques est qu'ils ne peuvent s'ajuster à des variables réponse pour lesquelles les résidus suivent une distribution non-Gaussienne.
 
-Cette situation est particulièrement commune lorsqu'on analyse des données biologiques, qui ont tendance à suivre d'autres types de distribution.
+Cette situation est particulièrement commune lorsqu'on analyse des données biologiques, qui ont tendance à suivre d'autres types de distribution telle que de type Poisson ou binomiale.
 
 Dans la section suivante, nous verrons comment les modèles linéaires généralisés nous permettent de palier à ce problème en modélisant spécifiquement la nature des résidus d'une variable $Y$.
 
 # 6. Modèles linéaires généralisés
 
+Dans cette section, nous verrons comment implémenter des modèles linéaires généralisés (GLM) dans R en spécifiant la nature de la distribution des résidus.
+
+Cela va nous permettre de modéliser nos variables sans avoir à les transformer.
+
 ## Familles de distribution
 
-### Exemple avec distribution binomiale
+Il existe une multitude de familles de distribution pour décrire une variable. Ultimement, l'important est de retenir que chaque distribution a ses propres paramètres pour décrire sa forme. Ces paramètres seront utilisés pour l'interprétation statistique de nos modèles.
 
-Montrer le graphique où on a les comptes de 1 et de 0 et montrer que la droite peut dépasser. On doit donc établir une limite inférieure et supérieure en spécifiant la distribution binomiale.
+Voici trois exemples des familles les plus communes.
 
-```{r plot5, fig.height=4, fig.width=5, cache=TRUE, class.source = "fold-hide"}
+### Distribution de Poisson
+
+Certaines distributions sont **discrètes**, et décrivent des nombres entiers exclusivement, tel que la distribution de **Poisson**. On voit souvent la distribution de Poisson dans les données écologiques comme l'abondance d'espèces ou le nombre d'individus d'une espèce. La distribution de Poisson est décrite par un seul paramètre qui est $\lambda$ qui décrit sa moyenne et sa variance.
+
+Voici une représentation de cette distribution avec différentes valeur de $\lambda$ :
+
+```{r fig.height=4, fig.width=10, echo = FALSE, cache = TRUE}
+# Simulate data for each Poisson distribution
+set.seed(123)
+lambdas <- c(1, 4, 10)
+n <- 1000
+poisson <- data.frame(
+  x = rep(1:n, times = length(lambdas)),
+  lambda = rep(lambdas, each = n),
+  y = c(
+    rpois(n, lambdas[1]),
+    rpois(n, lambdas[2]),
+    rpois(n, lambdas[3])
+  )
+)
+
+# Convert lambda to a factor for plotting purposes
+poisson$lambda <- factor(
+  poisson$lambda,
+  levels = lambdas,
+  labels = paste0("lambda = ", lambdas)
+)
+
+# Plot the three Poisson distributions using ggplot2
 ggplot(
+  data = poisson,
+  aes(x = y)
+) +
+  geom_histogram(
+    binwidth = 1,
+    position = "dodge",
+    colour = "black",
+    fill = "darkgray"
+  ) +
+  facet_wrap(~ lambda) +
+  labs(
+    x = "Valeur",
+    y = "Fréquence"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank()
+  )
+```
+
+### Distribution de Bernoulli
+
+Une autre distribution communément utilisée est la distribution de Bernoulli, qui ne prend qu'un seul paramètre étant la probabilité de succès $p$ lorsqu'on a données de type 0 ou 1. On observe souvent ces données avec des présences-absences d'espèces, soit, typiquement lorsqu'une variable n'a que deux issues.
+
+Cette distribution considère l'issue (0, 1) pour une seule expérience ou essai.
+
+Voici une représentation de cette distribution avec différentes valeur de $p$ :
+
+```{r fig.height=4, fig.width=10, echo = FALSE, cache = TRUE}
+# Simulate data for each Bernoulli distribution
+set.seed(123)
+probs <- c(0.1, 0.5, 0.9)
+n <- 1000
+bernou <- data.table(
+  sample = rep(1:n, times = length(probs)),
+  probability = rep(probs, each = n),
+  value = c(rbinom(n, size = 1, prob = probs[1]), 
+            rbinom(n, size = 1, prob = probs[2]), 
+            rbinom(n, size = 1, prob = probs[3]))
+)
+
+# Calculate the proportions
+bernou[, count := .N, by = .(probability, value)]
+bernou[, proportion := count / 1000, by = probability]
+
+# Convert probability to a factor for plotting purposes
+bernou[
+  , probability := factor(
+    probability,
+    levels = probs,
+    labels = paste0("p = ", probs)
+  )
+]
+
+bernou <- unique(bernou[, .(probability, value, proportion)])
+
+# Plot
+ggplot(
+  data = bernou,
+  aes(x = factor(value), y = proportion)
+) +
+  geom_bar(
+    stat = "identity",
+    position = "dodge",
+    colour = "black",
+    fill = "darkgray"
+  ) +
+  facet_wrap(~ probability) +
+  labs(
+    x = "Valeur",
+    y = "Probabilité"
+  ) +
+  scale_y_continuous(breaks = seq(0, 1, 0.25), limits = c(0, 1)) +
+  theme_bw(base_size = 14) +
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank()
+  )
+```
+
+### Distribution binomiale
+
+Finalement, la distribution binomiale est aussi communément observée dans les données biologiques, et consiste en une extension de la distribution de Bernoulli lorsqu'on répète l'essai à plusieurs reprises.
+
+Elle consiste donc en le nombre de succès pour un nombre fixe d'expériences indépendantes, ou chaque essai a la même probabilité de succès $p$. Ses paramètres sont le nombre d'essais $n$ et la probabilité à chaque essai $p$.
+
+Voici une représentation de cette distribution avec différentes valeur de $p$ et un $n$ de 50 :
+
+```{r, echo = FALSE, fig.height=4, fig.width=10, cache=TRUE}
+# Simulate data for each Binomial distribution
+set.seed(123)
+probs <- c(0.1, 0.5, 0.9)
+n <- 50
+
+binom <- lapply(probs, function(p) {
+  data.frame(
+    probability = paste0("p = ", p),
+    value = rbinom(n, size = n, prob = p)
+  )
+})
+binom <- do.call(rbind, binom)
+
+# Plot
+ggplot(binom, aes(x = value)) +
+  geom_histogram(
+    aes(y = after_stat(density)),
+    binwidth = 1, position = "dodge",
+    colour = "black",
+    fill = "darkgray"
+  ) +
+  facet_wrap(~ probability) +
+  labs(
+    x = "Nombre de fois qu'on obtient 1",
+    y = "Probabilité"
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 1, 0.25),
+    limits = c(0, 1)
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank()
+  )
+```
+
+## Fonction de lien
+
+Nous avons vu trois exemples de distributions souvent rencontrées avec des données biologiques.
+
+Dans un GLM, afin que celui-ci puisse estimer la relation entre $Y$ et $X$, on doit donc :
+
+1. Spécifier la distribution des résidus
+2. Spécifier la fonction de lien pour les valeurs prédites
+
+Cette deuxième étape consiste à linéariser la relation entre $Y$ et $X$ pour ensuite pouvoir faire des interprétations. Il s'agit donc de transformer les valeurs prédites $\hat{Y}$ pour avoir une relation linéaire.
+
+Mathématiquement, le prédicteur linéaire dans un GLM est défini comme :
+
+$$\eta = X\beta$$
+
+où $\beta$ sont les coefficients et $X$ la matrice des variables.
+
+La fonction de lien transforme le prédicteur linéaire à l'échelle appropriée pour $Y$ tel que :
+
+$$g(\mu) = \eta$$
+
+où $\mu$ est la moyenne prédite de $Y$ en fonction des prédicteurs $X$, et $g(.)$ est la fonction de lien.
+
+Voici une table qui résume les informations relatives à la fonction de lien pour les familles que nous avons vu.
+
+```{r echo = FALSE}
+library(knitr)
+link_info <- data.frame(
+  Distribution = c("Gaussienne", "Poisson", "Bernoulli", "Binomial"),
+  Nom = c("Identité", "Log", "Logit", "Logit"),
+  Fonction_de_lien = c(
+    "$g(\\mu) = \\mu$",
+    "$g(\\mu) = \\log(\\mu)$",
+    "$g(\\mu) = \\log\\left(\\frac{\\mu}{1 - \\mu}\\right)$",
+    "$g(\\mu) = \\log\\left(\\frac{\\mu}{1 - \\mu}\\right)$"
+  ),
+  Modèle = c(
+    "$\\mu = \\mathbf{X} \\boldsymbol{\\beta}$",
+    "$\\log(\\mu) = \\mathbf{X} \\boldsymbol{\\beta}$",
+    "$\\log\\left(\\frac{\\mu}{1 - \\mu}\\right) = \\mathbf{X} \\boldsymbol{\\beta}$",
+    "$\\log\\left(\\frac{\\mu}{1 - \\mu}\\right) = \\mathbf{X} \\boldsymbol{\\beta}$"
+  ),
+  brms = c(
+    "`gaussian(link=\"identity\")`",
+    "`poisson(link=\"log\")`",
+    "`bernoulli(link=\"logit\")`",
+    "`binomial(link=\"logit\")`"
+  )
+)
+
+# Print the kable table
+kable(
+  link_info, align = "l",
+  escape = FALSE
+)
+```
+
+## Exemple avec les données ADORE
+
+Maintenant que nous avons vu comment fonctionne le familles de distribution ainsi que la fonction de lien, nous pouvons estimer les paramètres d'un GLM avec R.
+
+Nous allons construire un modèle simple avec une variable réponse et deux covariables.
+
+Nos variable sont :
+
+- $Y$ : si la concentration effective est 1, plus toxique, ou 0, moins toxique.
+- $X_1$ : le type d'exposition
+- $X_2$ : la température moyenne du medium degrés Celsius
+- $X_3$ : la longévité de l'espèce en jours
+
+Si on essayait modéliser la relation entre la concentration effective (plus toxique ou moins toxique) et la température du medium, on obtiendrait ceci :
+
+```{r plot6, fig.height=4, fig.width=9, cache=TRUE, echo=FALSE}
+fit2 <- lm(
+  result_conc1_mean_binary ~ media_temperature_mean,
+  data = anim
+)
+
+out2 <- data.frame(residuals = resid(fit2), fitted = fitted(fit2))
+
+pex1 <- ggplot(
   data = anim,
   aes(x = media_temperature_mean, y = result_conc1_mean_binary)
 ) +
   geom_point(alpha = 0.05) +
   geom_abline(
-    intercept = -0.5, slope = 0.05,
+    intercept = fit2$coefficients[1],
+    slope = fit2$coefficients[2],
     color = "dodgerblue", linewidth = 1
   ) +
   ylab("Niveau de toxicité") +
   xlab("Température moyenne du médium") +
   scale_y_continuous(
-    breaks = seq(-0.5, 1.5, 0.5),
-    limits = c(-0.5, 1.5)
+    breaks = seq(0, 1, 0.25),
+    limits = c(0, 1)
   ) +
   theme_bw(base_size = 14) +
   theme(panel.grid = element_blank())
+
+pex2 <- ggplot(
+  data = out2,
+  aes(x = fitted, y = residuals)
+) +
+  geom_point(alpha = 0.05) +
+  geom_abline(
+    intercept = 0,
+    slope = 0,
+    linewidth = 1,
+    linetype = "dashed",
+    color = "dodgerblue"
+  ) +
+  ylab("Résidus normalisés") +
+  xlab("Valeurs prédites") +
+  scale_y_continuous(
+    breaks = seq(-0.8, 0.8, 0.4),
+    limits = c(-0.8, 0.8)
+  ) +
+  theme_bw(base_size = 14) +
+  theme(panel.grid = element_blank())
+
+ggarrange(pex1, pex2)
 ```
 
-## Fonction de lien
+Comme vous pouvez voir dans le panneau à gauche, le modèle ne décrit pas bien la relation entre le niveau de toxicité et la température. De plus, il aurait pu y avoir des cas où la droite dépasse le seuil possible de nos valeurs (ici 0 ou 1)
 
+De plus, on peut voir à gauche que les résidus de notre modèle ne satisfont pas la condition d'homoscédasticité.
 
-## Un exemple: GLM binomial
-
-Aussi appelé régression logistique
+Pour ces raisons, on doit donc établir une limite inférieure et supérieure à nos données en spécifiant une distribution de Bernoulli pour modéliser nos données.
 
 ### Construction du modèle
 
-On normalise les variables explicatives pour faciliter l'interprétation.
+Nous allons donc construire un GLM binomial Bayésien en utilisant les variables spécifiées ci-haut.
+
+Dans un premier temps, nous allons normaliser les variables explicatives pour faciliter l'interprétation et les ramener à la même échelle.
 
 ```{r}
 standardize <- function(x) {
@@ -450,7 +780,7 @@ anim[
 ]
 ```
 
-Définir la formule
+Voici la formule de notre modèle que nous spécifions.
 
 ```{r}
 form1 <- brmsformula(
@@ -461,15 +791,40 @@ form1 <- brmsformula(
 )
 ```
 
+### Informations à priori
+
+Hypothèses...
+
+```{r}
+
+```
+
 ### Estimation des paramètres
 
-On peut rouler en parallèle...
+Il est à noter qu'estimer un modèle par MCMC peut prendre un long temps, particulièrement lorsqu'il y a beaucoup de données et qu'on veut faire beaucoup d'itérations.
+
+Pour cette raison, on peut tirer profit des coeurs dans votre ordinateur pour accélérer le processus. Toutefois, si vous avez un gros modèle à faire rouler, je suggère de l'effectuer sur un serveur de calcul si vous y avez accès.
+
+Nous allons donc vérifier le nombre de coeur que nous avons. Si vous en avez seulement 4 ou moins, je vous suggère de passer cette étape.
 
 ```{r}
 parallel::detectCores()
 ```
 
-Explique MCMC pour iter warmup et thin + chaînes...
+La fonction indique que j'ai 16 coeurs disponibles dans mon ordinateur. On doit toujours en réserver un pour les processus internes. Ainsi, je vais utiliser 12 coeurs qui effectueront un processus parallèle sur 4 chaînes.
+
+Voici le calcul pour les spécifications des itérations de MCMC. Normalement, on veut que nos distributions postérieures contiennent 1000 échantillons par chaîne. Ainsi, pour chaque chaîne, nous aurons :
+
+- n: 2000
+- Itérations: n - réchauffement 
+- Réchauffement: n / 2
+- Échantillonnage: itérations / échantillonnage = 1000
+
+Notre modèle fera donc 1000 réchauffements (`warmup = 1000`), 1000 itérations (`iter = 2000` où 2000-1000), et échantillonera une valeur de paramètre à chaque itération (`thin = 1`). Nous obtiendrons ainsi 4000 échantillons pour chaque distribution postérieure, soit, 1000 par chaîne.
+
+Puisque j'utiliserai 12 coeurs en parallèle sur 4 chaînes, 3 coeurs seront sollicités par chaîne. Ceci est spécificé dans l'argument `threads = threading(3)`.
+
+Nous sommes donc prêt.e.s à estimer les paramètres :
 
 ```{r glm1, cache=TRUE}
 glm1 <- brm(
@@ -501,7 +856,7 @@ glm1 <- brm(
 )
 ```
 
-On créé un dossier où nous allons sauvegarder le modèle
+Puisque l'estimation peut prendre quelques temps, on créé un dossier où nous allons sauvegarder le modèle.
 
 ```{r}
 chemin <- file.path(getwd(), "outputs")
@@ -517,19 +872,6 @@ saveRDS(
 )
 ```
 
-Par défaut, la fonction `summary()` dans `brms` rapporte la moyenne de la distribution postérieure avec les intervales de comptabilité inférieurs et supérieurs à 95%.
-
-```{r}
-glm1_t <- data.table(
-  round(summary(glm1)$fixed, digits = 3),
-  keep.rownames = TRUE
-)
-setnames(glm1_t, old = "rn", new = "Parameter")
-
-knitr::kable(glm1_t[, c(1, 2, 4, 5)])
-```
-
-
 ### Vérifications du modèle
 
 Extraire les distributions à posteriori.
@@ -541,11 +883,11 @@ params <- as_draws_df(
 )
 ```
 
-#### Convergence des MCMC
+Convergence des MCMC
 
 Graphiques de type "trace plot"
 
-```{r}
+```{r plot7}
 bayesplot::mcmc_trace(
   params,
   regex_pars = "b",
@@ -556,21 +898,63 @@ bayesplot::mcmc_trace(
 Rhat et tailles d'échantillons effectives
 
 ```{r}
+glm1_t <- data.table(
+  round(summary(glm1)$fixed, digits = 3),
+  keep.rownames = TRUE
+)
+setnames(glm1_t, old = "rn", new = "Parameter")
+
 glm1_t[, c(6:8)]
 ```
 
-```{r}
+Ajustement du modèle
+
+```{r plot8}
 pp_check(glm1)
 ```
 
-#### Ajustement du modèle
-
-
-
 ### Interprétations
 
+Par défaut, la fonction `summary()` dans `brms` rapporte la moyenne de la distribution postérieure avec les intervales de comptabilité inférieurs et supérieurs à 95%.
 
+```{r}
+knitr::kable(glm1_t[, c(1, 2, 4, 5)])
+```
 
+```{r}
+tab1 <- conditional_effects(
+  glm1, method = "fitted",
+  effects = "Zmedia_temperature_mean",
+  robust = TRUE
+)
+tab1 <- data.table(tab1[[1]])
+
+ggplot(
+  data = tab1,
+  aes(x = Zmedia_temperature_mean, y = estimate__)
+) +
+  geom_point(
+    data = anim,
+    aes(
+      y = result_conc1_mean_binary,
+      x = Zmedia_temperature_mean
+    ),
+    alpha = 0.05
+  ) +
+  geom_ribbon(
+    aes(ymin = lower__, ymax = upper__),
+    alpha = 0.20, fill = "#440154"
+  ) +
+  geom_line(linewidth = 1, alpha = 0.5, colour = "#440154") +
+  ylab("Toxicité\n") +
+  scale_y_continuous(
+    breaks = seq(0, 1, 0.25),
+    limits = c(0, 1)
+  ) +
+  xlab("\nTempérature moyenne normalisée") +
+  theme_bw(base_size = 14) +
+  theme(panel.grid = element_blank())
+```
 
 # 7. Modèles linéaires (généralisés) hiérarchiques
 
@@ -578,9 +962,11 @@ problème de plusieurs paramètres quand on a plusieurs facteurs
 
 Biological and ecological data are often messy. Most of the time there is an inherent structure to data (i.e. single observations are not always independent), relationships between variables of interest might differ depending on grouping factors like species, and more often than not sample sizes are low, making it difficult to fit models that require many parameters to be estimated.
 
+# 8. Modèles linéaires (généralisés) hiérarchiques multivariés
+
 # X. Informations complémentaires
 
-## Additional checks
+## Inspections additionnelles
 
 While the model verifications that we just did are probably among the most important ones, they cover only a small portion of the checks that you should perform to ensure that your model has been correctly specified. To go further, here is a list of useful links for additional checks : 
 
@@ -595,7 +981,7 @@ Moreover, note that MCMC estimation can come with different convergence problems
 
 <div id="refs"></div>
 
-# X. Paramètres sytème
+# Reproductibilité
 
 Voici les informations minimales de mon système pour reproduire les analyses avec les mêmes versions de R ainsi que les librairies.
 
