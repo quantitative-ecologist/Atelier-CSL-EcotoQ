@@ -180,7 +180,7 @@ Pour l'atelier, nous allons nous intéresser à modéliser les variables liées 
 
 Commençons par évaluer la distribution de la variable réponse, qui est le log de la concentration effective moyenne. Nous allons faire nos graphiques avec la librairie `ggplot2` et `ggpubr`.
 
-```{r explo1, cache=TRUE, class.source = "fold-hide"}
+```{r explo1, cache=TRUE, class.source="fold-hide"}
 p1 <- ggplot(data = anim) +
   geom_histogram(
     aes(x = result_conc1_mean_log),
@@ -206,7 +206,7 @@ p2 <- ggplot(data = algue) +
 
 Affichons les graphiques.
 
-```{r plot1, fig.height=4, fig.width=8, cache=TRUE, class.source = "fold-hide"}
+```{r plot1, fig.height=4, fig.width=8, cache=TRUE, class.source="fold-hide"}
 ggarrange(p1, p2)
 ```
 
@@ -214,7 +214,7 @@ ggarrange(p1, p2)
 
 Vérifions si les concentrations effectives varient selon l'espèce.
 
-```{r explo2, cache=TRUE, class.source = "fold-hide"}
+```{r explo2, cache=TRUE, class.source="fold-hide"}
 p3 <- ggplot(data = anim) +
   geom_boxplot(
     aes(
@@ -263,7 +263,7 @@ p4 <- ggplot(data = algue) +
 
 On affiche les graphiques.
 
-```{r plot2, fig.height=6, fig.width=8, cache=TRUE, class.source = "fold-hide"}
+```{r plot2, fig.height=6, fig.width=8, cache=TRUE, class.source="fold-hide"}
 ggarrange(p3, p4, common.legend = TRUE)
 ```
 
@@ -271,7 +271,7 @@ ggarrange(p3, p4, common.legend = TRUE)
 
 Pour les animaux, on pourrait aussi se demander si la concentration varie selon la position trophique, sachant que l'alimentation pourrait influencer l'exposition aux contaminants.
 
-```{r explo3, cache=TRUE, class.source = "fold-hide"}
+```{r explo3, cache=TRUE, class.source="fold-hide"}
 p5 <- ggplot(data = anim) +
   geom_boxplot(
     aes(
@@ -298,7 +298,7 @@ p5 <- ggplot(data = anim) +
 
 On affiche le graphique.
 
-```{r plot3, fig.height=6, fig.width=6, cache=TRUE, class.source = "fold-hide"}
+```{r plot3, fig.height=6, fig.width=6, cache=TRUE, class.source="fold-hide"}
 p5
 ```
 
@@ -308,7 +308,7 @@ La variation semble un peu plus faible. On pourrait supposer que celà est dû a
 
 Finalement, on peut aussi se douter que le type d'exposition devrait influencer comment la concentration effective change.
 
-```{r explo4, cache=TRUE, class.source = "fold-hide"}
+```{r explo4, cache=TRUE, class.source="fold-hide"}
 p6 <- ggplot(data = anim) +
   geom_boxplot(
     aes(
@@ -356,7 +356,7 @@ p7 <- ggplot(data = algue) +
 
 On affiche les graphiques.
 
-```{r plot4, fig.height=5, fig.width=8, cache=TRUE, class.source = "fold-hide"}
+```{r plot4, fig.height=5, fig.width=8, cache=TRUE, class.source="fold-hide"}
 ggarrange(p6, p7, common.legend = TRUE)
 ```
 
@@ -364,7 +364,7 @@ ggarrange(p6, p7, common.legend = TRUE)
 
 Les vérifications de nos données nous indiquent qu'il semble y avoir une structure hiérarchique dans nos données. En termes simples, cela signifie qu'il semble y avoir de la variation dans les concentrations effectives entre les différents groupes que nous avons vu.
 
-Les modèles hiérarchiques nous permettront donc de modéliser cette variation afin d'en tenir compte. Nous verrons celà à la section 6.
+Les modèles hiérarchiques nous permettront de modéliser cette variation afin d'en tenir compte. Nous verrons celà à la section 7.
 
 # 5. Rappel sur les modèles linéaires
 
@@ -385,7 +385,7 @@ Où :
 
 Visuellement, on peut représenter ce modèle avec la figure suivante :
 
-```{r plot5, fig.height=5, fig.width=6, echo=FALSE, cache = TRUE}
+```{r plot5, fig.height=5, fig.width=6, echo=FALSE, cache=TRUE}
 # Simulate data
 set.seed(123)
 n <- 120
@@ -480,7 +480,7 @@ Certaines distributions sont **discrètes**, et décrivent des nombres entiers e
 
 Voici une représentation de cette distribution avec différentes valeur de $\lambda$ :
 
-```{r fig.height=4, fig.width=10, echo = FALSE, cache = TRUE}
+```{r plot6, fig.height=4, fig.width=10, echo=FALSE, cache = TRUE}
 # Simulate data for each Poisson distribution
 set.seed(123)
 lambdas <- c(1, 4, 10)
@@ -533,7 +533,7 @@ Cette distribution considère l'issue (0, 1) pour une seule expérience ou essai
 
 Voici une représentation de cette distribution avec différentes valeur de $p$ :
 
-```{r fig.height=4, fig.width=10, echo = FALSE, cache = TRUE}
+```{r plot7, fig.height=4, fig.width=10, echo=FALSE, cache=TRUE}
 # Simulate data for each Bernoulli distribution
 set.seed(123)
 probs <- c(0.1, 0.5, 0.9)
@@ -593,7 +593,7 @@ Elle consiste donc en le nombre de succès pour un nombre fixe d'expériences in
 
 Voici une représentation de cette distribution avec différentes valeur de $p$ et un $n$ de 50 :
 
-```{r, echo = FALSE, fig.height=4, fig.width=10, cache=TRUE}
+```{r plot8, fig.height=4, fig.width=10, echo=FALSE, cache=TRUE}
 # Simulate data for each Binomial distribution
 set.seed(123)
 probs <- c(0.1, 0.5, 0.9)
@@ -688,7 +688,7 @@ kable(
 )
 ```
 
-## Exemple avec les données ADORE
+# 7. GLM avec les données ADORE
 
 Maintenant que nous avons vu comment fonctionne le familles de distribution ainsi que la fonction de lien, nous pouvons estimer les paramètres d'un GLM avec R.
 
@@ -701,9 +701,22 @@ Nos variable sont :
 - $X_2$ : la température moyenne du medium degrés Celsius
 - $X_3$ : la longévité de l'espèce en jours
 
-Si on essayait modéliser la relation entre la concentration effective (plus toxique ou moins toxique) et la température du medium, on obtiendrait ceci :
+Évaluons leur structure avant de faire le modèle.
 
-```{r plot6, fig.height=4, fig.width=9, cache=TRUE, echo=FALSE}
+```{r}
+str(anim[
+  , .(
+    result_conc1_mean_binary, test_exposure_type,
+    tax_lh_amd, media_temperature_mean
+  )
+])
+```
+
+Les données sont dans le format adéquat et sont prêtes pour la modélisation.
+
+Si on essayait modéliser la relation entre la concentration effective (plus toxique ou moins toxique) et la température du medium avec une régression linéaire classique, on obtiendrait ceci :
+
+```{r plot9, fig.height=4, fig.width=9, echo=FALSE, cache=TRUE}
 fit2 <- lm(
   result_conc1_mean_binary ~ media_temperature_mean,
   data = anim
@@ -754,23 +767,25 @@ pex2 <- ggplot(
 ggarrange(pex1, pex2)
 ```
 
-Comme vous pouvez voir dans le panneau à gauche, le modèle ne décrit pas bien la relation entre le niveau de toxicité et la température. De plus, il aurait pu y avoir des cas où la droite dépasse le seuil possible de nos valeurs (ici 0 ou 1)
+Comme vous pouvez voir dans le panneau à gauche, le modèle ne décrit pas bien la relation entre le niveau de toxicité et la température. De plus, il aurait pu y avoir des cas où la droite dépasse le seuil possible de nos valeurs (ici 0 ou 1).
 
-De plus, on peut voir à gauche que les résidus de notre modèle ne satisfont pas la condition d'homoscédasticité.
+On peut voir à gauche que les résidus de notre modèle ne satisfont pas la condition d'homoscédasticité.
 
-Pour ces raisons, on doit donc établir une limite inférieure et supérieure à nos données en spécifiant une distribution de Bernoulli pour modéliser nos données.
+Pour ces raisons, on doit donc établir une limite inférieure et supérieure à nos données en spécifiant une distribution de Bernoulli pour modéliser la concentration effective.
 
-### Construction du modèle
+## Préparation des données
 
-Nous allons donc construire un GLM binomial Bayésien en utilisant les variables spécifiées ci-haut.
+Nous allons construire un GLM Bayésien en utilisant les variables spécifiées ci-haut.
 
 Dans un premier temps, nous allons normaliser les variables explicatives pour faciliter l'interprétation et les ramener à la même échelle.
 
 ```{r}
+# Fonction de normalisation en score Z.
 standardize <- function(x) {
   (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
 }
 
+# Créer deux nouvelles colones
 anim[
   , c("Ztax_lh_amd", "Zmedia_temperature_mean") := lapply(
     .SD,
@@ -780,7 +795,37 @@ anim[
 ]
 ```
 
-Voici la formule de notre modèle que nous spécifions.
+## Construction du modèle
+
+Voici la formule de notre modèle. On évalue donc comment la concentration effective varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience.
+
+Voici l'équation de notre modèle :
+
+$$\eta = X\beta + Z\gamma + 1\beta_0 + \epsilon$$
+
+où :
+
+- $\eta$ est le prédicteur linéaire
+- $X$ est la matrice de conception du type d'exposition
+- $\beta$ est le vecteur des coefficients du type d'exposition
+- $Z$ est la matrice de conception des prédicteurs linéaires (longévité et température)
+- $\gamma$ est le vecteur des coefficients du type d'exposition des prédicteurs linéaires
+- $1$ est le vecteur de 1 pour l'ordonnée à l'origine
+- $\beta_0$ est l'ordonnée à l'origine pour le niveau de référence
+
+La fonction de lien du modèle est :
+
+$$logit(p) = log(\frac{p}{1-p})$$
+
+où :
+
+$p$ est la probabilité que la concentration effective soit toxique (1) pour chaque observation. 
+
+On estime $p$ en utilisant l'inverse de la fonction logit :
+
+$$p = \text{logit}^{-1}(\eta) = \frac{1}{1 + e^{-\eta}}$$
+
+Spécifions ce modèle dans `brms` avec la fonction `brmsformula()` :
 
 ```{r}
 form1 <- brmsformula(
@@ -791,7 +836,7 @@ form1 <- brmsformula(
 )
 ```
 
-### Informations à priori
+## Informations à priori
 
 Hypothèses...
 
@@ -799,7 +844,7 @@ Hypothèses...
 
 ```
 
-### Estimation des paramètres
+## Estimation des paramètres
 
 Il est à noter qu'estimer un modèle par MCMC peut prendre un long temps, particulièrement lorsqu'il y a beaucoup de données et qu'on veut faire beaucoup d'itérations.
 
@@ -831,26 +876,26 @@ glm1 <- brm(
   # La formule et la famille
   formula = form1,
   family = bernoulli(link = "logit"),
-  
+
   # Les paramètres d'itérations pour le MCMC
   iter = 2000,
   warmup = 1000,
   thin = 1,
   chains = 4,
-  
+
   # Paramètres pour accélérer les calculs
   # Utiliser seulement si vous avez plusieurs coeurs
   threads = threading(3),
   backend = "cmdstanr",
-  
+
   # Reproductibilité et paramètres de contrôle
   seed = 123,
   control = list(adapt_delta = 0.95),
-  
+
   # Distributions à priori
   #prior = priors,
   sample_prior = TRUE,
-  
+
   # Données
   data = anim
 )
@@ -872,22 +917,26 @@ saveRDS(
 )
 ```
 
-### Vérifications du modèle
+## Vérifications du modèle
 
-Extraire les distributions à posteriori.
+Maintenant que notre modèle a terminé son exécution, il est essentiel de faire des inspections pour s'assurer que les paramètres estimés sont fiables. Ces étapes d'inspections sont cruciales pour s'assurer que nos interprétations biologiques font du sens. Autrement, nous pourrions avoir de mauvaises surprises.
+
+Commençons par extraire les échantillons des distributions à posteriori dans un `data.frame` pour les manipuler.
 
 ```{r}
 params <- as_draws_df(
-  glm1, add_chain = TRUE,
+  x = glm1, add_chain = TRUE,
   regex = TRUE
 )
 ```
 
-Convergence des MCMC
+### Convergence des chaînes
 
-Graphiques de type "trace plot"
+La première chose que nous allons faire est de vérifier si les chaînes de Markov ont bien convergé pour chacun de nos paramètres d'intérêt. Nous allons faire ceci en inspectant des "trace plots".
 
-```{r plot7}
+Nous pouvons déduire que les chaînes ont convergé si les "trace plots" sont homogènes.
+
+```{r plot10, cache=TRUE}
 bayesplot::mcmc_trace(
   params,
   regex_pars = "b",
@@ -895,27 +944,45 @@ bayesplot::mcmc_trace(
 )
 ```
 
-Rhat et tailles d'échantillons effectives
+Les chaînes de notre modèle semble avoir très bien convergé.
+
+Une autre étape d'inspection de convergence des chaînes de Markov est d'évaluer les **$\hat{R}$** et les **tailles d'échantillon effectives** pour chaque paramètre d'intérêt.
+
+- Dans @Burkner2017, on peut lire que la taille d'échantillon effective est : "le nombre d'échantillons indépendants de la distribution postérieure qui serait attendu pour produire la même erreur standard de la moyenne postérieure que celle obtenue à partir des échantillons dépendants retournés par l'algorithme MCMC". Dans `brms`, le résumé du modèle fournit une estimation des tailles d'échantillon effectives de la partie centrale et des queues de la distribution postérieure. Le `Bulk_ESS` rapporte l'efficacité de l'échantillonnage de la partie centrale de la distribution postérieure (c'est-à-dire la médiane ou la moyenne), tandis que le `Tail_ESS` diagnostique l'efficacité de l'échantillonnage des queues de la distribution postérieure (c'est-à-dire les quantiles 5% et 95%). Nous utilisons un seuil de <100 comme règle de décision pour savoir si les chaînes ont convergé pour les paramètres [@Vehtari.etal2021a].
+
+- En revanche, le $\hat{R}$ est un outil de diagnostic quantitatif courant pour savoir si les chaînes ont convergé [@gelmanBayesianDataAnalysis2013;@Burkner2017]. Il compare la variance à l'intérieur d'une chaîne à la variance entre les chaînes. Différentes versions et seuils ont été proposés pour cette mesure [@gelmanInferenceIterativeSimulation1992;@gelmanBayesianDataAnalysis2013;@Vehtari.etal2021a], mais nous utiliserons la plus parcimonieuse suggérée par @Vehtari.etal2021a avec un seuil fixé à <1.01.
+
+Dans brms, le $\hat{R}$, le `Bulk_ESS`, et le `Tail_ESS` apparaissent toujours à côté des moyennes postérieures des paramètres affichées avec la fonction `summary()`. Examinons les valeurs pour nos paramètres :
 
 ```{r}
 glm1_t <- data.table(
-  round(summary(glm1)$fixed, digits = 3),
+  round(summary(glm1, prob = 0.89, robust = TRUE)$fixed, digits = 3),
   keep.rownames = TRUE
 )
 setnames(glm1_t, old = "rn", new = "Parameter")
 
-glm1_t[, c(6:8)]
+glm1_t[, c(1, 6:8)]
 ```
 
-Ajustement du modèle
+Les valeurs sont très bien!
 
-```{r plot8}
-pp_check(glm1)
+### Ajustement du modèle
+
+Nous allons maintenant examiner si notre modèle a bien prédit les données en utilisant les [vérifications prédictives postérieures](https://mc-stan.org/bayesplot/reference/PPC-overview.html). Les vérifications prédictives postérieures utilisent des données simulées à partir de la distribution prédictive postérieure d'un modèle et les comparent aux données brutes utilisées pour ajuster le modèle. @gabryVisualizationBayesianWorkflow2019 suggèrent qu'un modèle bien ajusté devrait générer des données ressemblant aux données qui ont été observées (bruts). Ici, $y$ est la distribution de nos données observées, et $y_{rep}$ est la distribution des données simulées à partir de la distribution prédictive postérieure du modèle.
+
+La production des graphiques peut prendre du temps en fonction de la complexité du modèle et de la taille des données. Vous pouvez spécifier le nombre d'échantillons à afficher en utilisant l'argument `ndraws` dans la fonction `pp_check()` pour accélérer le processus.
+
+```{r plot11, fig.height=5, fig.width=6, cache=TRUE}
+pp_check(glm1, ndraws = 100)
 ```
 
-### Interprétations
+Notre modèle semble très bien ajusté aux données!
 
-Par défaut, la fonction `summary()` dans `brms` rapporte la moyenne de la distribution postérieure avec les intervales de comptabilité inférieurs et supérieurs à 95%.
+En somme, nos inspections indiquent que le modèle est très bon. Toutefois, je vous encourage à consulter la section sur les inspections additionnelles pour mieux diagnostiquer vos modèles.
+
+## Interprétations
+
+Par défaut, la fonction `summary()` dans `brms` rapporte la moyenne de la distribution postérieure avec les intervales de compatibilité inférieurs et supérieurs à 95%. (ceci a été modifié)
 
 ```{r}
 knitr::kable(glm1_t[, c(1, 2, 4, 5)])
@@ -923,16 +990,17 @@ knitr::kable(glm1_t[, c(1, 2, 4, 5)])
 
 ```{r}
 tab1 <- conditional_effects(
-  glm1, method = "fitted",
+  x = glm1, method = "posterior_epred",
   effects = "Zmedia_temperature_mean",
-  robust = TRUE
+  #prob = 0.89, robust = TRUE,
+  spaghetti = TRUE, ndraws = 1000,
+  mean = FALSE
 )
-tab1 <- data.table(tab1[[1]])
+spag <- attr(tab1$Zmedia_temperature_mean, "spaghetti")
+```
 
-ggplot(
-  data = tab1,
-  aes(x = Zmedia_temperature_mean, y = estimate__)
-) +
+```{r}
+ggplot() +
   geom_point(
     data = anim,
     aes(
@@ -941,19 +1009,23 @@ ggplot(
     ),
     alpha = 0.05
   ) +
-  geom_ribbon(
-    aes(ymin = lower__, ymax = upper__),
-    alpha = 0.20, fill = "#440154"
+  geom_line(
+    data = spag,
+    aes(
+      x = Zmedia_temperature_mean,
+      y = estimate__,
+      group = sample__
+    ),
+    linewidth = 1, alpha = 0.05,
+    colour = "#440154"
   ) +
-  geom_line(linewidth = 1, alpha = 0.5, colour = "#440154") +
   ylab("Toxicité\n") +
   scale_y_continuous(
     breaks = seq(0, 1, 0.25),
     limits = c(0, 1)
   ) +
   xlab("\nTempérature moyenne normalisée") +
-  theme_bw(base_size = 14) +
-  theme(panel.grid = element_blank())
+  theme_classic(base_size = 14)
 ```
 
 # 7. Modèles linéaires (généralisés) hiérarchiques
