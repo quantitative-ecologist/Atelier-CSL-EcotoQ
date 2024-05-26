@@ -982,25 +982,134 @@ En somme, nos inspections indiquent que le modèle est très bon. Toutefois, je 
 
 ## Interprétations
 
-Par défaut, la fonction `summary()` dans `brms` rapporte la moyenne de la distribution postérieure avec les intervales de compatibilité inférieurs et supérieurs à 95%. (ceci a été modifié)
+### Sommaire des paramètres
+
+Par défaut, la fonction `summary()` dans `brms` rapporte la moyenne de la distribution postérieure avec les intervales de compatibilité inférieurs et supérieurs à 95%.
+
+Toutefois, il est suggéré en analyse Bayésienne de rapporter les intervalles à 89% car ils procurent davantage de stabilité. De plus, la médiane est une meilleure mesure de tendance centrale lorsque la distribution postérieure n'est pas symétrique. 
+
+Nous avons donc ajouté des arguments à la fonction summary précédemment en faisant ce code :
+
+```{r, eval=FALSE}
+glm1_t <- data.table(
+  round(summary(glm1, prob = 0.89, robust = TRUE)$fixed, digits = 3),
+  keep.rownames = TRUE
+)
+setnames(glm1_t, old = "rn", new = "Parameter")
+```
+
+où `robust = TRUE` indique de rapporter la médiane, et `prop=0.89` les intervalles à 89%. Au final, la décision de l'intervalle et arbitraire, et le mieux est de visualiser la distribution entière de l'estimé.
+
+Visualisons la table de sommaire :
 
 ```{r}
 knitr::kable(glm1_t[, c(1, 2, 4, 5)])
 ```
 
+On peut voir que :
+
+- Il y a des différences de toxicité selon le type d'exposition
+- La probabilité que la CL50 soit plus toxique augmente avec la longévité
+- La probabilité que la CL50 soit plus toxique diminue avec la température moyenne
+
+Nous allons visualiser ces résultats avec des figures.
+
+### Figures
+
+Tout d'abord, on extrait les prédictions pour la longévité moyenne ainsi que la température moyenne avec la fonction `conditional_effects()` qui est spécifique à `brms`. 
+
+#### Température :
+
 ```{r}
 tab1 <- conditional_effects(
   x = glm1, method = "posterior_epred",
   effects = "Zmedia_temperature_mean",
-  #prob = 0.89, robust = TRUE,
   spaghetti = TRUE, ndraws = 1000,
   mean = FALSE
 )
-spag <- attr(tab1$Zmedia_temperature_mean, "spaghetti")
+spag1 <- attr(tab1$Zmedia_temperature_mean, "spaghetti")
 ```
 
+#### Longévité
+
 ```{r}
-ggplot() +
+tab2 <- conditional_effects(
+  x = glm1, method = "posterior_epred",
+  effects = "Ztax_lh_amd",
+  spaghetti = TRUE, ndraws = 1000,
+  mean = FALSE
+)
+spag2 <- attr(tab2$Ztax_lh_amd, "spaghetti")
+
+```
+
+#### Type d'exposition
+
+Ici, on va utiliser tous les échantillons des distributions postérieures des moyennes prédites pour le type d'exposition afin de les comparer. Nous avons déjà extrait ceci dans une étape ultérieure et assigné à l'objet `params`. Visualisons l'objet :
+
+```{r}
+params
+```
+
+Nous allons utiliser les 4 premières colones pour produire le graphique. On va manipuler un peu la table pour faire le graphique.
+
+```{r}
+# Transformer en data.table pour manipuler
+paramsdt <- data.table(params)
+
+paramsdt[, c(2:4) := paramsdt[, c(2:4)] + b_Intercept]
+
+# Changer en format long
+preds3 <- melt(
+  data = paramsdt[, c(1:4)],
+  variable.name = "exposure_type",
+  measure = colnames(paramsdt[, c(1:4)])
+)
+
+# Ramener à l'échelle de probabilité
+preds3[, value := plogis(value)]
+
+# Calculer les médianes
+medians <- preds3[, .(median = median(value)), by = exposure_type]
+```
+
+```{r plot12, fig.height=5, fig.width=6, cache=TRUE}
+ggplot(
+  data = preds3,
+  aes(x = value, fill = exposure_type)
+) +
+  geom_density(alpha = 0.25, colour = "black") +
+  geom_vline(
+    data = medians,
+    aes(xintercept = median, color = exposure_type),
+    linetype = "dashed"
+  ) +
+  scale_fill_discrete(
+    labels = c(
+      "Flux", "NS",
+      "Renouvellement", "Statique"
+    )
+  ) +
+  scale_colour_discrete(
+    labels = c(
+      "Flux", "NS",
+      "Renouvellement", "Statique"
+    )
+  ) +
+  #scale_x_continuous(breaks = seq(0.25, 1, 0.25), limits = c(0.25, 1)) +
+  xlab("Probabilité d'être plus toxique") +
+  ylab("Densité") +
+  labs(fill = "Exposition", colour = "Exposition") +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "top")
+```
+
+
+
+On peut maintenant produire les graphiques. À titre de rappel, on a la même pente pour l'ensemble des types d'exposition, et des ordonnées à l'origine qui diffèrent. Ici, on rapporte la droite pour le type d'exposition `F`, pour flux d'eau continu. 
+
+```{r plot13, fig.height=4, fig.width=8, cache=TRUE, }
+preds1 <- ggplot() +
   geom_point(
     data = anim,
     aes(
@@ -1010,7 +1119,7 @@ ggplot() +
     alpha = 0.05
   ) +
   geom_line(
-    data = spag,
+    data = spag1,
     aes(
       x = Zmedia_temperature_mean,
       y = estimate__,
@@ -1026,7 +1135,39 @@ ggplot() +
   ) +
   xlab("\nTempérature moyenne normalisée") +
   theme_classic(base_size = 14)
+
+preds2 <- ggplot() +
+  geom_point(
+    data = anim,
+    aes(
+      y = result_conc1_mean_binary,
+      x = Ztax_lh_amd
+    ),
+    alpha = 0.05
+  ) +
+  geom_line(
+    data = spag2,
+    aes(
+      x = Ztax_lh_amd,
+      y = estimate__,
+      group = sample__
+    ),
+    linewidth = 1, alpha = 0.05,
+    colour = "#440154"
+  ) +
+  ylab("Toxicité\n") +
+  scale_y_continuous(
+    breaks = seq(0, 1, 0.25),
+    limits = c(0, 1)
+  ) +
+  xlab("\nLongévité moyenne") +
+  theme_classic(base_size = 14)
+
+ggarrange(preds1, preds2)
 ```
+
+
+
 
 # 7. Modèles linéaires (généralisés) hiérarchiques
 
