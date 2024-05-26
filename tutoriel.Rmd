@@ -462,11 +462,11 @@ Cette situation est particulièrement commune lorsqu'on analyse des données bio
 
 Dans la section suivante, nous verrons comment les modèles linéaires généralisés nous permettent de palier à ce problème en modélisant spécifiquement la nature des résidus d'une variable $Y$.
 
-# 6. Modèles linéaires généralisés
+# 6. Théorie: les GLM
 
-Dans cette section, nous verrons comment implémenter des modèles linéaires généralisés (GLM) dans R en spécifiant la nature de la distribution des résidus.
+Dans cette section, nous verrons comment fonctionnent les modèles linéaires généralisés (GLM) en faisant un survol de trois **familles de distribution** pour modéliser les résidus correctement.
 
-Cela va nous permettre de modéliser nos variables sans avoir à les transformer.
+Vous verrez donc comment modéliser des variables d'intérêt sans avoir à les transformer pour satisfaire les conditions d'application des modèles linéaires standard. Pour y arriver, nous verrons aussi le concept de la **fonction de lien**, qui nous permettra d'estimer la relation entre y et x de façon linéaire, peu importe la famille de distribution.
 
 ## Familles de distribution
 
@@ -589,7 +589,7 @@ ggplot(
 
 Finalement, la distribution binomiale est aussi communément observée dans les données biologiques, et consiste en une extension de la distribution de Bernoulli lorsqu'on répète l'essai à plusieurs reprises.
 
-Elle consiste donc en le nombre de succès pour un nombre fixe d'expériences indépendantes, ou chaque essai a la même probabilité de succès $p$. Ses paramètres sont le nombre d'essais $n$ et la probabilité à chaque essai $p$.
+Elle consiste donc en le nombre de succès pour un nombre fixe d'essais indépendants, où chaque essai a la même probabilité de succès $p$. Ses paramètres sont le nombre d'essais $n$ et la probabilité à chaque essai $p$.
 
 Voici une représentation de cette distribution avec différentes valeur de $p$ et un $n$ de 50 :
 
@@ -688,33 +688,20 @@ kable(
 )
 ```
 
-# 7. GLM avec les données ADORE
+# 7. Exemple: GLM avec les données ADORE
 
-Maintenant que nous avons vu comment fonctionne le familles de distribution ainsi que la fonction de lien, nous pouvons estimer les paramètres d'un GLM avec R.
+Maintenant que nous avons vu comment fonctionne le familles de distribution ainsi que la fonction de lien, nous pouvons **estimer les paramètres** d'un GLM avec R.
 
-Nous allons construire un modèle simple avec une variable réponse et deux covariables.
+Nous allons construire un GLM simple avec une variable réponse et trois variables explicatives.
 
 Nos variable sont :
 
-- $Y$ : si la concentration effective est 1, plus toxique, ou 0, moins toxique.
+- $Y$ : la concentration effective est 1 (plus toxique) ou 0 (moins toxique)
 - $X_1$ : le type d'exposition
 - $X_2$ : la température moyenne du medium degrés Celsius
 - $X_3$ : la longévité de l'espèce en jours
 
-Évaluons leur structure avant de faire le modèle.
-
-```{r}
-str(anim[
-  , .(
-    result_conc1_mean_binary, test_exposure_type,
-    tax_lh_amd, media_temperature_mean
-  )
-])
-```
-
-Les données sont dans le format adéquat et sont prêtes pour la modélisation.
-
-Si on essayait modéliser la relation entre la concentration effective (plus toxique ou moins toxique) et la température du medium avec une régression linéaire classique, on obtiendrait ceci :
+Si on essayait modéliser la relation entre la toxicité de la concentration effective et la température du medium avec une régression linéaire classique, on obtiendrait ceci :
 
 ```{r plot9, fig.height=4, fig.width=9, echo=FALSE, cache=TRUE}
 fit2 <- lm(
@@ -769,15 +756,26 @@ ggarrange(pex1, pex2)
 
 Comme vous pouvez voir dans le panneau à gauche, le modèle ne décrit pas bien la relation entre le niveau de toxicité et la température. De plus, il aurait pu y avoir des cas où la droite dépasse le seuil possible de nos valeurs (ici 0 ou 1).
 
-On peut voir à gauche que les résidus de notre modèle ne satisfont pas la condition d'homoscédasticité.
+On peut voir à gauche que les résidus de notre modèle ne respectent pas la condition d'homoscédasticité.
 
-Pour ces raisons, on doit donc établir une limite inférieure et supérieure à nos données en spécifiant une distribution de Bernoulli pour modéliser la concentration effective.
+Pour ces raisons, on doit donc établir une limite inférieure et supérieure à nos données en **spécifiant une distribution de Bernoulli** pour modéliser la toxicité de la concentration effective.
 
 ## Préparation des données
 
-Nous allons construire un GLM Bayésien en utilisant les variables spécifiées ci-haut.
+Commençons par évaluer la structure des variables avant de faire le modèle.
 
-Dans un premier temps, nous allons normaliser les variables explicatives pour faciliter l'interprétation et les ramener à la même échelle.
+```{r}
+str(anim[
+  , .(
+    result_conc1_mean_binary, test_exposure_type,
+    tax_lh_amd, media_temperature_mean
+  )
+])
+```
+
+Les données sont dans le format adéquat pour la modélisation.
+
+Avans de faire le modèle, nous allons **normaliser les variables explicatives continues** en les ramenant à la même échelle. Ceci peut faciliter les calculs des coefficients et simplifier l'interprétation des paramètres.
 
 ```{r}
 # Fonction de normalisation en score Z.
@@ -797,7 +795,7 @@ anim[
 
 ## Construction du modèle
 
-Voici la formule de notre modèle. On évalue donc comment la concentration effective varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience.
+Dans cet exemple, on s'intéresse à estimer comment la toxicité de la concentration effective varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience.
 
 Voici l'équation de notre modèle :
 
@@ -846,35 +844,66 @@ Hypothèses...
 
 ## Estimation des paramètres
 
-Il est à noter qu'estimer un modèle par MCMC peut prendre un long temps, particulièrement lorsqu'il y a beaucoup de données et qu'on veut faire beaucoup d'itérations.
+### Spécifications pour l'estimation MCMC
 
-Pour cette raison, on peut tirer profit des coeurs dans votre ordinateur pour accélérer le processus. Toutefois, si vous avez un gros modèle à faire rouler, je suggère de l'effectuer sur un serveur de calcul si vous y avez accès.
+L'agorithme de MCMC va effectuer un nombre $n$ d'itérations que nous allons spécifier. À chaque itération, l'algorithme estimera la valeur des paramètres d'intérêt de notre modèle. 
 
-Nous allons donc vérifier le nombre de coeur que nous avons. Si vous en avez seulement 4 ou moins, je vous suggère de passer cette étape.
+Généralement, on effectue $n$ itérations sur **4 chaînes de Markov** qu'on combine pour avoir les distributions postérieures. Pour une bonne précision, on voit souvent des distributions postérieures avec $\ge 1000$  échantillons au total.
+
+Voici les spécifications pour l'estimation des paramètres par MCMC. Pour chacune des 4 chaînes, nous aurons :
+
+- n: 2000
+- réchauffement: n / 2
+- itérations: n - réchauffement
+- échantillonnage: itérations / échantillonnage = 1000
+
+Notre modèle fera donc 1000 réchauffements (`warmup = 1000`), 1000 itérations (`iter = 2000` où 2000-1000), et échantillonera une valeur de paramètre à chaque itération (`thin = 1`).
+
+Nous obtiendrons ainsi 1000 échantillons par chaîne que nous combinerons pour obtenir **4000 échantillons postérieurs par paramètre**.
+
+### Vérification du nombre de coeurs
+
+Il est à noter qu'estimer un modèle par MCMC peut prendre beaucoup de temps, particulièrement lorsqu'il y a beaucoup de données et qu'on veut faire beaucoup d'itérations.
+
+Pour cette raison, vous pouvez tirer profit des coeurs dans votre ordinateur pour accélérer le processus.
+
+Nous allons donc vérifier le nombre de coeurs que nous avons.
 
 ```{r}
 parallel::detectCores()
 ```
 
-La fonction indique que j'ai 16 coeurs disponibles dans mon ordinateur. On doit toujours en réserver un pour les processus internes. Ainsi, je vais utiliser 12 coeurs qui effectueront un processus parallèle sur 4 chaînes.
+La fonction indique que j'ai 16 coeurs disponibles dans mon ordinateur. On doit toujours en réserver un pour les processus internes.
 
-Voici le calcul pour les spécifications des itérations de MCMC. Normalement, on veut que nos distributions postérieures contiennent 1000 échantillons par chaîne. Ainsi, pour chaque chaîne, nous aurons :
+**Si vous en avez seulement 4 ou moins, passez à la section "Si vous avez $\le4$ coeurs"**
 
-- n: 2000
-- Itérations: n - réchauffement 
-- Réchauffement: n / 2
-- Échantillonnage: itérations / échantillonnage = 1000
+#### Si vous avez $\ge 6$ coeurs
 
-Notre modèle fera donc 1000 réchauffements (`warmup = 1000`), 1000 itérations (`iter = 2000` où 2000-1000), et échantillonera une valeur de paramètre à chaque itération (`thin = 1`). Nous obtiendrons ainsi 4000 échantillons pour chaque distribution postérieure, soit, 1000 par chaîne.
+Je vais utiliser 12 coeurs qui effectueront un processus parallèle sur 4 chaînes.
+
+Je spécifie 12 et non 14 car 14 / 4 = 3.5, un chiffre impair. On doit toujours avoir un nombre de coeurs pairs pour effectuer les tâches en parallèle.
 
 Puisque j'utiliserai 12 coeurs en parallèle sur 4 chaînes, 3 coeurs seront sollicités par chaîne. Ceci est spécificé dans l'argument `threads = threading(3)`.
+
+#### Si vous avez $\le 4$ coeurs
+
+Si vous avez 4 coeurs ou moins sur votre ordinateur, vous ne pourrez pas effectuer le modèle en parallèle. Vous devrez ainsi estimer les paramètres un échantillon et une chaîne à la fois, ce qui prendra plus de temps.
+
+Toutefois, il est possible d'effectuer les calculs sur 3 chaînes simultanément. Vous pouvez ainsi remplacer l'argument `threads = threading(3)` par `cores = parallel::detectCores()-1`.
+
+Ultimement, si vous avez un gros modèle à faire rouler, je suggère de l'effectuer sur un serveur de calcul si vous y avez accès.
+
+### Exécution de l'estimateur
 
 Nous sommes donc prêt.e.s à estimer les paramètres :
 
 ```{r glm1, cache=TRUE}
 glm1 <- brm(
-  # La formule et la famille
+
+  # La formule spécifiée
   formula = form1,
+
+  # La famille de distribution
   family = bernoulli(link = "logit"),
 
   # Les paramètres d'itérations pour le MCMC
@@ -886,10 +915,17 @@ glm1 <- brm(
   # Paramètres pour accélérer les calculs
   # Utiliser seulement si vous avez plusieurs coeurs
   threads = threading(3),
+
+  # Si vous avez 4 coeurs ou moins
+  # cores = parallel::detectCores()-1,
+
+  # Estimateur
   backend = "cmdstanr",
 
-  # Reproductibilité et paramètres de contrôle
+  # Reproductibilité
   seed = 123,
+
+  # Paramètres de contrôle
   control = list(adapt_delta = 0.95),
 
   # Distributions à priori
@@ -944,7 +980,7 @@ bayesplot::mcmc_trace(
 )
 ```
 
-Les chaînes de notre modèle semble avoir très bien convergé.
+Les chaînes de notre modèle semblent avoir très bien convergé.
 
 Une autre étape d'inspection de convergence des chaînes de Markov est d'évaluer les **$\hat{R}$** et les **tailles d'échantillon effectives** pour chaque paramètre d'intérêt.
 
@@ -1016,49 +1052,80 @@ Nous allons visualiser ces résultats avec des figures.
 
 ### Figures
 
-Tout d'abord, on extrait les prédictions pour la longévité moyenne ainsi que la température moyenne avec la fonction `conditional_effects()` qui est spécifique à `brms`. 
+#### Calcul des prédictions
 
-#### Température :
+Tout d'abord, on extrait les prédictions pour la longévité moyenne ainsi que la température moyenne avec la fonction `conditional_effects()` qui est spécifique à `brms`.
+
+Quelques spécifications :
+
+- l'argument `spaghetti=` va chercher des prédictions posterieures
+- l'argument `ndraws=` spécifie le nombre de prédictions postérieures (ici, 100)
+- pour chacune des 100 droites, nous aurons 100 valeurs. C'est le paramètre par défaut de `conditional_effects()`
+
+Il est possible de tracer le graphique directement à partir de la fonction. Toutefois, nous allons plutôt conserver les valeurs dans une table afin d'avoir plus de flexibilité sur les paramètres graphiques.
+
+**Température**
 
 ```{r}
 tab1 <- conditional_effects(
   x = glm1, method = "posterior_epred",
   effects = "Zmedia_temperature_mean",
-  spaghetti = TRUE, ndraws = 1000,
-  mean = FALSE
+  spaghetti = TRUE, ndraws = 100
 )
 spag1 <- attr(tab1$Zmedia_temperature_mean, "spaghetti")
 ```
 
-#### Longévité
+**Longévité**
 
 ```{r}
 tab2 <- conditional_effects(
   x = glm1, method = "posterior_epred",
   effects = "Ztax_lh_amd",
-  spaghetti = TRUE, ndraws = 1000,
-  mean = FALSE
+  spaghetti = TRUE, ndraws = 100
 )
 spag2 <- attr(tab2$Ztax_lh_amd, "spaghetti")
-
 ```
 
-#### Type d'exposition
+**Type d'exposition**
 
-Ici, on va utiliser tous les échantillons des distributions postérieures des moyennes prédites pour le type d'exposition afin de les comparer. Nous avons déjà extrait ceci dans une étape ultérieure et assigné à l'objet `params`. Visualisons l'objet :
+Ici, on va utiliser les distributions postérieures des moyennes prédites de chaque type d'exposition. Nous avons déjà extrait ceci dans une étape ultérieure et assigné à l'objet `params`. 
+
+Cela nous permettra de comparer les moyennes entre chaque type d'exposition avec une approche Bayésienne.
+
+Visualisons l'objet :
 
 ```{r}
 params
 ```
 
-Nous allons utiliser les 4 premières colones pour produire le graphique. On va manipuler un peu la table pour faire le graphique.
+Nous allons utiliser les 4 premières colones pour produire le graphique. Ces 4 colones sont :
+
+- `b_Intercept`: la moyenne de l'exposition de type `F`
+- `b_test_exposure_typeNR` est la différence entre `NR` et `F`
+- `b_test_exposure_typeR` est la différentre entre `R` et `F`
+- `b_test_exposure_typeS` est la différentre entre `S` et `F`
+
+Nous devons manipuler un peu la table pour faire le graphique.
+
+On veut :
+
+**1.** calculer la moyenne pour les expositions `NR`, `R`, et `S`
+**2.** ramener les valeurs à une échelle de probabilité
+**3.** calculer la médiane des distributions postérieures
+
+Commençons par **l'étape 1**.
 
 ```{r}
 # Transformer en data.table pour manipuler
 paramsdt <- data.table(params)
 
+# On calcule les vraies moyennes
 paramsdt[, c(2:4) := paramsdt[, c(2:4)] + b_Intercept]
+```
 
+Ensuite **l'étape 2**.
+
+```{r}
 # Changer en format long
 preds3 <- melt(
   data = paramsdt[, c(1:4)],
@@ -1068,10 +1135,20 @@ preds3 <- melt(
 
 # Ramener à l'échelle de probabilité
 preds3[, value := plogis(value)]
+```
 
+Finalement, **l'étape 3**.
+
+```{r}
 # Calculer les médianes
 medians <- preds3[, .(median = median(value)), by = exposure_type]
 ```
+
+#### Visualisation
+
+On peut maintenant produire les graphiques. À titre de rappel, on a la même pente pour l'ensemble des types d'exposition, et des ordonnées à l'origine qui diffèrent (c-à-d, les moyennes de toxicité diffèrent). Ici, on rapporte la droite pour le type d'exposition `F`. 
+
+Commençons avec les différences de moyennes.
 
 ```{r plot12, fig.height=5, fig.width=6, cache=TRUE}
 ggplot(
@@ -1097,18 +1174,16 @@ ggplot(
     )
   ) +
   #scale_x_continuous(breaks = seq(0.25, 1, 0.25), limits = c(0.25, 1)) +
-  xlab("Probabilité d'être plus toxique") +
-  ylab("Densité") +
+  xlab("\nProbabilité d'être plus toxique") +
+  ylab("Densité\n") +
   labs(fill = "Exposition", colour = "Exposition") +
   theme_classic(base_size = 14) +
   theme(legend.position = "top")
 ```
 
+Finalement, les droites pour la température et la longévité pour le type d'exposition `F`.
 
-
-On peut maintenant produire les graphiques. À titre de rappel, on a la même pente pour l'ensemble des types d'exposition, et des ordonnées à l'origine qui diffèrent. Ici, on rapporte la droite pour le type d'exposition `F`, pour flux d'eau continu. 
-
-```{r plot13, fig.height=4, fig.width=8, cache=TRUE, }
+```{r plot13, fig.height=4, fig.width=8}
 preds1 <- ggplot() +
   geom_point(
     data = anim,
@@ -1165,9 +1240,6 @@ preds2 <- ggplot() +
 
 ggarrange(preds1, preds2)
 ```
-
-
-
 
 # 7. Modèles linéaires (généralisés) hiérarchiques
 
