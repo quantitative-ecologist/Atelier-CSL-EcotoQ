@@ -33,6 +33,7 @@ library(brms)
 library(bayesplot)
 library(ggplot2)
 library(ggpubr)
+library(viridis)
 library(knitr)
 ```
 
@@ -50,6 +51,29 @@ Les objectifs d'apprentissage sont :
 2. De reconnaître les variantes des modèles (H(G)LM, MH(G)LM)
 3. D'implémenter un modèle hiéarchique avec R
 4. D'interpréter les résultats avec l'inférence Bayésienne
+
+## librairies
+
+Voici la liste des librairies que nous allons utiliser pour l'atelier. Assurez-vous de les avoir téléchargées.
+
+```{r, eval=FALSE}
+# Pour manipuler les données
+library(data.table)
+
+# Pour estimer les paramètres des modèles
+library(brms)
+
+# Pour diagnostiquer les modèles bayésiens
+library(bayesplot)
+
+# Pour nos graphiques
+library(ggplot2)
+library(ggpubr)
+library(viridis)
+
+# Pour générer de jolies tables
+library(knitr)
+```
 
 ## Jeu de données
 
@@ -84,7 +108,7 @@ Plus intuitivement, on peut aussi l'illustrer comme suit :
 knitr::include_graphics("images/bayes-inf.png")
 ```
 
-**Ainsi, l'inférence Bayésienne est une approche où l'on adapte nos connaissances (à posteriori) à partir de nos hypothèses (connaissances à priori) et des preuves que nous avons.**
+**Ainsi, l'inférence Bayésienne est une approche où l'on adapte nos connaissances (à posteriori) à partir de nos hypothèses (connaissances à priori) et les preuves que nous avons.**
 
 La distribution à posteriori est donc l'élément central que nous cherchons à estimer. Rappelez-vous que chaque fois que vous voyez le terme "à posteriori" dans ce tutoriel, nous faisons référence à la distribution d'un paramètre d'intérêt estimé par le modèle.
 
@@ -96,7 +120,7 @@ https://micl.shinyapps.io/prior2post/
 
 Il existe de nombreuses façons d'approximer la distribution à posteriori. Dans ce tutoriel, nous utiliserons la méthode de Monte Carlo Hamiltonienne (HMC) et l'échantillonneur No-U-Turn (NUTS) pour estimer la distribution à posteriori. Ce sont des algorithmes spécifiques dans la grande famille d'estimation de Monte Carlo par chaîne de Markov (MCMC). 
 
-Pour ce faire nous effectuerons tous nos modèles avec la librairie `brms`, une interface R pour le [langage probabiliste STAN](https://mc-stan.org/). La librairie `brms` utilise la méthode HMC et NUTS pour estimer les paramètres. Je vous recommande vivement de lire [les vignettes de la librairie](https://paul-buerkner.github.io/brms/articles/index.html) pour mieux comprendre les capacités et le fonctionnement de `brms`.
+Pour ce faire nous effectuerons tous nos modèles avec la librairie `brms`, une interface R pour le [langage probabiliste STAN](https://mc-stan.org/). La librairie `brms` utilise l'algorithme NUTS pour estimer les paramètres. Je vous recommande vivement de lire [les vignettes de la librairie](https://paul-buerkner.github.io/brms/articles/index.html) pour mieux comprendre les capacités et le fonctionnement de `brms`.
 
 ## Les avantages
 
@@ -148,31 +172,24 @@ Dans le cadre de cet atelier, nous utiliserons un échantillon de ces variables.
 
 ### Variables sur les résultats expérimentaux (Y)
 
-- `result_effect`: le groupe d'effet de l'expérience, soit, mortalité (`MOR`), physiologie (`PHY`), croissance (`GRO`), ou populationel (`POP`).
-- `result_obs_duration_mean`: la durée d'exposition en heure codée comme `24`, `48`, `72`, et `96` heures
-- `result_conc1_mean_binary`: si la dose est moins toxique (`0`) ou plus toxique (`1`)
-- `result_conc1_type`: le type de concentration, soit, ingrédient actif (`A`), formulation (`F`), ou total (`T`)
+- `result_effect`: le groupe d'effet de l'expérience, soit, mortalité (`MOR`), physiologie (`PHY`), croissance (`GRO`), ou populationel (`POP`)
 - `result_conc_mean`: la concentration effective moyenne en mg/L
 - `result_conc_mean_log`: le log de la concentration effective moyenne
+- `result_conc1_mean_binary`: si la dose est moins toxique (`0`) ou plus toxique (`1`)
 
 ### Variables sur les espèces (X)
 
 - `tax_group`: le groupe taxonomique soit, `fish`, `crusta`, `algae`
 - `tax_gs`: le nom de l'espèce étudiée codée comme `Genre_épithète`
-- `tax_eco_food`: la position trophique de l'espèce. On y trouve les Bactérivores, Carnivores, Détritivores, Herbivores, Omnivores, Planktivores, Charognards, et les Parasites, toutes encodées avec la première lettre de leur nom
 - `tax_lh_amd`: la longévité de l'espèce en jours
-- `tax_lh_licm`: la taille corporelle ultime en cm
-- `tax_lh_ri#/d`: le taux reproducteur en nombre d'individus produits par jour
 
 ### Variables liées aux conditions expérimentales (X)
 
 - `test_exposure_type`: le type d'exposition, soit, statique (`S`), en flux continu d'eau (`F`), en flux continu d'eau avec renouvellement (`R`), ou non rapporté (`NR`).
-- `test_media_type`: le type de médium utilisé, soit eau fraîche (`FW`) ou eau salée (`SW`)
 - `media_ph_mean`: le pH moyen du medium
 - `media_temperature_mean`: la température moyenne du medium en degrés Celsius
-- `chem_name`: le nom du composé chimique à l'étude
 
-Pour l'atelier, nous allons nous intéresser à modéliser les variables liées aux **résultats expérimentaux**. Ce seront donc nos variables réponse ($Y$). Nous testerons comment ces variables changent en fonction des variables liées aux espèces ainsi qu'aux conditions expérimentales ($X$)
+Pour l'atelier, nous allons nous intéresser à modéliser les variables liées aux **résultats expérimentaux**. Ce seront nos variables réponse ($Y$). Nous testerons comment ces variables changent en fonction des variables liées aux espèces ainsi qu'aux conditions expérimentales ($X$)
 
 # 4. Exploration des données
 
@@ -267,46 +284,9 @@ On affiche les graphiques.
 ggarrange(p3, p4, common.legend = TRUE)
 ```
 
-## Concentration effective selon la position trophique
-
-Pour les animaux, on pourrait aussi se demander si la concentration varie selon la position trophique, sachant que l'alimentation pourrait influencer l'exposition aux contaminants.
-
-```{r explo3, cache=TRUE, class.source="fold-hide"}
-p5 <- ggplot(data = anim) +
-  geom_boxplot(
-    aes(
-      x = result_conc1_mean_log,
-      y = tax_eco_food,
-      fill = tax_group
-    ),
-    color = "black"
-  ) +
-  ggtitle("Animaux") +
-  ylab("Position trophique") +
-  xlab("log(concentration moyenne (mg/L))") +
-  scale_fill_manual(values = c("#21918c", "#440154")) +
-  scale_x_continuous(
-    breaks = seq(-8, 8, 4),
-    limits = c(-9, 9)
-  ) +
-  theme_bw(base_size = 14) +
-  theme(
-    panel.grid = element_blank(),
-    legend.position = "top"
-  )
-```
-
-On affiche le graphique.
-
-```{r plot3, fig.height=6, fig.width=6, cache=TRUE, class.source="fold-hide"}
-p5
-```
-
-La variation semble un peu plus faible. On pourrait supposer que celà est dû au fait que les animaux sont exposés aux contaminants en conditions contrôlées, et non dans la nature.
-
 ## Concentration effective selon l'exposition
 
-Finalement, on peut aussi se douter que le type d'exposition devrait influencer comment la concentration effective change.
+Finalement, on peut aussi se douter que la concentration effective pourrait changer selon le type d'exposition.
 
 ```{r explo4, cache=TRUE, class.source="fold-hide"}
 p6 <- ggplot(data = anim) +
@@ -362,17 +342,19 @@ ggarrange(p6, p7, common.legend = TRUE)
 
 ## Sommaire de l'exploration de données
 
-Les vérifications de nos données nous indiquent qu'il semble y avoir une structure hiérarchique dans nos données. En termes simples, cela signifie qu'il semble y avoir de la variation dans les concentrations effectives entre les différents groupes que nous avons vu.
+Les vérifications nous indiquent qu'il semble y avoir une structure hiérarchique dans nos données. En termes simples, cela signifie qu'il y a de la variation dans les concentrations effectives entre les différents groupes que nous avons vu, soit, les espèces ainsi que le type d'exposition.
 
-Les modèles hiérarchiques nous permettront de modéliser cette variation afin d'en tenir compte. Nous verrons celà à la section 7.
+Les modèles hiérarchiques nous permettront de modéliser cette variation afin d'en tenir compte.
 
 # 5. Rappel sur les modèles linéaires
 
 ## Les bases
 
-L'objectif d'un modèle linéaire est de calculer des prédictions ($\hat{Y}$) d'une variable $Y$ tout en minimisant l'écart entre les observations et les prédictions.
+L'objectif d'un modèle linéaire est de prédire une variable $Y$ tout en minimisant l'écart entre les observations et les prédictions ($\hat{Y}$).
 
-Au travers votre parcours, vous avez sûrement vu différents types de modèles où on utilise des variables explicatives $X_i$ pour prédire une variable $Y$ (ex. ANOVA, régression, ANCOVA). Par exemple, une régression linéaire peut s'écrire avec cette équation :
+Au travers votre parcours, vous avez sûrement vu différents types de modèles où on utilise des variables explicatives $X_i$ pour prédire une variable $Y$ (ex. ANOVA, régression, ANCOVA). 
+
+Par exemple, une régression linéaire peut s'écrire avec cette équation :
 
 $$Y = X\beta+\epsilon$$
 
@@ -464,19 +446,19 @@ Dans la section suivante, nous verrons comment les modèles linéaires général
 
 # 6. Théorie: les GLM
 
-Dans cette section, nous verrons comment fonctionnent les modèles linéaires généralisés (GLM) en faisant un survol de trois **familles de distribution** pour modéliser les résidus correctement.
+Dans cette section, nous verrons comment fonctionnent les **modèles linéaires généralisés** (GLM). Nous ferons tout d'abord un survol de trois **familles de distribution**. En les reconnaissant, nous pourrons modéliser nos résidus correctement lorsque nos données suivent une de ces distributions.
 
-Vous verrez donc comment modéliser des variables d'intérêt sans avoir à les transformer pour satisfaire les conditions d'application des modèles linéaires standard. Pour y arriver, nous verrons aussi le concept de la **fonction de lien**, qui nous permettra d'estimer la relation entre y et x de façon linéaire, peu importe la famille de distribution.
+Pour y arriver, nous verrons aussi le concept de la **fonction de lien** rattachée à notre famille de distribution. La fonction de lien nous permettra d'estimer la relation linéaire entre $Y$ et $X$ lorsque nos résidus ne sont pas Gaussiens. Nous n'aurons donc pas à transformer nos données pour satisfaire les conditions d'application des modèles linéaires standard.
 
 ## Familles de distribution
 
-Il existe une multitude de familles de distribution pour décrire une variable. Ultimement, l'important est de retenir que chaque distribution a ses propres paramètres pour décrire sa forme. Ces paramètres seront utilisés pour l'interprétation statistique de nos modèles.
+Il existe une multitude de familles de distribution qui décrivent les variables qu'on peut mesurer. Ici, l'important est de retenir que chaque distribution a des paramètres propres qui décrivent sa forme. Les GLM utilisent ces paramètres pour l'estimation des coefficients, et nous les utiliserons pour l'interprétation de nos modèles.
 
 Voici trois exemples des familles les plus communes.
 
 ### Distribution de Poisson
 
-Certaines distributions sont **discrètes**, et décrivent des nombres entiers exclusivement, tel que la distribution de **Poisson**. On voit souvent la distribution de Poisson dans les données écologiques comme l'abondance d'espèces ou le nombre d'individus d'une espèce. La distribution de Poisson est décrite par un seul paramètre qui est $\lambda$ qui décrit sa moyenne et sa variance.
+Certaines distributions sont **discrètes** et décrivent des nombres entiers exclusivement, telles que la distribution de **Poisson**. On voit souvent la distribution de Poisson dans les données écologiques comme l'abondance d'espèces ou le nombre d'individus d'une espèce. La distribution de Poisson est décrite par un seul paramètre, $\lambda$, qui décrit sa moyenne et sa variance.
 
 Voici une représentation de cette distribution avec différentes valeur de $\lambda$ :
 
@@ -527,7 +509,7 @@ ggplot(
 
 ### Distribution de Bernoulli
 
-Une autre distribution communément utilisée est la distribution de Bernoulli, qui ne prend qu'un seul paramètre étant la probabilité de succès $p$ lorsqu'on a données de type 0 ou 1. On observe souvent ces données avec des présences-absences d'espèces, soit, typiquement lorsqu'une variable n'a que deux issues.
+Une autre distribution communément rencontrée dans les données écologiques est la distribution de Bernoulli. Cette distribution est décrite par le paramètre $p$, étant la probabilité de succès (1) lorsqu'on a données de type 0 ou 1. On observe souvent cette distribution avec des données de présence-absence d'espèces, soit, typiquement lorsqu'une variable n'a que deux issues.
 
 Cette distribution considère l'issue (0, 1) pour une seule expérience ou essai.
 
@@ -640,7 +622,7 @@ Dans un GLM, afin que celui-ci puisse estimer la relation entre $Y$ et $X$, on d
 1. Spécifier la distribution des résidus
 2. Spécifier la fonction de lien pour les valeurs prédites
 
-Cette deuxième étape consiste à linéariser la relation entre $Y$ et $X$ pour ensuite pouvoir faire des interprétations. Il s'agit donc de transformer les valeurs prédites $\hat{Y}$ pour avoir une relation linéaire.
+Cette deuxième étape consiste à **linéariser la relation** entre $Y$ et $X$. Il s'agit donc de transformer les valeurs prédites $\hat{Y}$ pour avoir une relation linéaire.
 
 Mathématiquement, le prédicteur linéaire dans un GLM est défini comme :
 
@@ -690,7 +672,7 @@ kable(
 
 # 7. Exemple: GLM avec les données ADORE
 
-Maintenant que nous avons vu comment fonctionne le familles de distribution ainsi que la fonction de lien, nous pouvons **estimer les paramètres** d'un GLM avec R.
+Maintenant que nous avons vu les familles de distribution ainsi que la mécanique de la fonction de lien, nous pouvons **estimer les paramètres** d'un GLM avec R.
 
 Nous allons construire un GLM simple avec une variable réponse et trois variables explicatives.
 
@@ -719,7 +701,7 @@ pex1 <- ggplot(
   geom_abline(
     intercept = fit2$coefficients[1],
     slope = fit2$coefficients[2],
-    color = "dodgerblue", linewidth = 1
+    color = "#440154", linewidth = 1
   ) +
   ylab("Niveau de toxicité") +
   xlab("Température moyenne du médium") +
@@ -740,7 +722,7 @@ pex2 <- ggplot(
     slope = 0,
     linewidth = 1,
     linetype = "dashed",
-    color = "dodgerblue"
+    color = "#440154"
   ) +
   ylab("Résidus normalisés") +
   xlab("Valeurs prédites") +
@@ -836,21 +818,62 @@ form1 <- brmsformula(
 
 ## Informations à priori
 
-Hypothèses...
+Comme nous l'avons vu dans la section sur l'inférence Bayésienne, la distributions postérieures sont estimées en multipliant la distribution à priori et la distribution de vraisemblance des données (les preuves).
+
+Par défaut, `brms` emploie des distributions à priori très larges qui ne réflètent pas nos hypothèses/connaissances sur notre système. Définir les connaissances à priori est donc très important en inférence Bayésienne, et je vous suggère fortement de faire ce processus. C'est ce qui différencie l'inférence Bayésienne de l'approche fréquentiste.
+
+Ici, puisque je ne connais pas assez bien l'écotoxicologie, je spécifie des "priors" relativement informatifs suivant une distribution Gaussienne avec une moyenne de 0 et un écart-type de 1.
+
+Cela signifie que je crois que les valeurs des paramètres devraient se situer autour de 0 avec des valeurs positives allant de +1 à -1 écart-types.
+
+Les priors à spécifier sont :
+
+- sur l'ordonnée à l'origine globale (la moyenne du type d'exposition `F`)
+- les différences de moyenne par rapport à `F`
+- les pentes pour la température et la longévité
+
+Pour vous aider à comprendre, imaginez que vous savez avec la littérature que la dose effective devrait être plus toxique avec une augmentation de la température. Ainsi, pour la pente de ce paramètre, vous auriez pu spécifier une distribution Gaussienne avec une moyenne de 1 et un écart-type de 0.5. Vous diriez donc à votre modèle que vous assumez que cette valeur devrait être positive, se situant autour de 1, avec peu de variation autour de cette valeur.
 
 ```{r}
-
+priors <- c(
+  # Informations à priori sur l'ordonnée à l'origine
+  set_prior(
+    "normal(0, 1)",
+    class = "Intercept"
+  ),
+  # Informations à priori sur les différences de moyenne
+  set_prior(
+    "normal(0, 1)",
+    class = "b",
+    coef = c(
+      "test_exposure_typeNR",
+      "test_exposure_typeR",
+      "test_exposure_typeS"
+    )
+  ),
+  # Informations à priori sur les pentes
+  set_prior(
+    "normal(0, 1)",
+    class = "b",
+    coef = c(
+      "Zmedia_temperature_mean",
+      "Ztax_lh_amd"
+    )
+  )
+)
 ```
 
 ## Estimation des paramètres
 
 ### Spécifications pour l'estimation MCMC
 
-L'agorithme de MCMC va effectuer un nombre $n$ d'itérations que nous allons spécifier. À chaque itération, l'algorithme estimera la valeur des paramètres d'intérêt de notre modèle. 
+À titre de rappel, `brms` utilise l'algorithme de MCMC NUTS pour estimer les paramètres du modèle.
+
+L'agorithme va effectuer un nombre $n$ d'itérations que nous allons spécifier. À chaque itération, l'algorithme estimera la valeur des paramètres d'intérêt de notre modèle. 
 
 Généralement, on effectue $n$ itérations sur **4 chaînes de Markov** qu'on combine pour avoir les distributions postérieures. Pour une bonne précision, on voit souvent des distributions postérieures avec $\ge 1000$  échantillons au total.
 
-Voici les spécifications pour l'estimation des paramètres par MCMC. Pour chacune des 4 chaînes, nous aurons :
+Voici les spécifications pour l'estimation des paramètres par MCMC NUTS. Pour chacune des 4 chaînes, nous aurons :
 
 - n: 2000
 - réchauffement: n / 2
@@ -859,13 +882,13 @@ Voici les spécifications pour l'estimation des paramètres par MCMC. Pour chacu
 
 Notre modèle fera donc 1000 réchauffements (`warmup = 1000`), 1000 itérations (`iter = 2000` où 2000-1000), et échantillonera une valeur de paramètre à chaque itération (`thin = 1`).
 
-Nous obtiendrons ainsi 1000 échantillons par chaîne que nous combinerons pour obtenir **4000 échantillons postérieurs par paramètre**.
+Nous obtiendrons ainsi 1000 échantillons par chaîne que nous combinerons pour un total de **4000 échantillons postérieurs par paramètre**.
 
-### Vérification du nombre de coeurs
+### Accélérer l'estimation (facultatif)
 
 Il est à noter qu'estimer un modèle par MCMC peut prendre beaucoup de temps, particulièrement lorsqu'il y a beaucoup de données et qu'on veut faire beaucoup d'itérations.
 
-Pour cette raison, vous pouvez tirer profit des coeurs dans votre ordinateur pour accélérer le processus.
+Pour cette raison, vous pouvez tirer profit des coeurs du processeur de votre ordinateur pour accélérer l'estimation.
 
 Nous allons donc vérifier le nombre de coeurs que nous avons.
 
@@ -889,7 +912,7 @@ Puisque j'utiliserai 12 coeurs en parallèle sur 4 chaînes, 3 coeurs seront sol
 
 Si vous avez 4 coeurs ou moins sur votre ordinateur, vous ne pourrez pas effectuer le modèle en parallèle. Vous devrez ainsi estimer les paramètres un échantillon et une chaîne à la fois, ce qui prendra plus de temps.
 
-Toutefois, il est possible d'effectuer les calculs sur 3 chaînes simultanément. Vous pouvez ainsi remplacer l'argument `threads = threading(3)` par `cores = parallel::detectCores()-1`.
+Toutefois, il est possible que 3 chaînes effectuent les calculs simultanément si vous avez 4 coeurs. Vous pouvez ainsi remplacer l'argument `threads = threading(3)` par `cores = parallel::detectCores()-1`. Vous utiliserez donc 3 coeurs pour que 3 chaînes puissent échantilloner les paramètres simultanément, un échantillon à la fois.
 
 Ultimement, si vous avez un gros modèle à faire rouler, je suggère de l'effectuer sur un serveur de calcul si vous y avez accès.
 
@@ -913,7 +936,7 @@ glm1 <- brm(
   chains = 4,
 
   # Paramètres pour accélérer les calculs
-  # Utiliser seulement si vous avez plusieurs coeurs
+  # Utiliser seulement si vous avez >4 coeurs
   threads = threading(3),
 
   # Si vous avez 4 coeurs ou moins
@@ -929,7 +952,10 @@ glm1 <- brm(
   control = list(adapt_delta = 0.95),
 
   # Distributions à priori
-  #prior = priors,
+  prior = priors,
+
+  # Échantillonage des distributions à priori
+  # Ceci peut être utile à des fins de comparaison
   sample_prior = TRUE,
 
   # Données
@@ -1034,7 +1060,7 @@ glm1_t <- data.table(
 setnames(glm1_t, old = "rn", new = "Parameter")
 ```
 
-où `robust = TRUE` indique de rapporter la médiane, et `prop=0.89` les intervalles à 89%. Au final, la décision de l'intervalle et arbitraire, et le mieux est de visualiser la distribution entière de l'estimé.
+où `robust = TRUE` indique de rapporter la médiane, et `prop=0.89` les intervalles à 89%. Au final, la décision de l'intervalle et arbitraire, et le mieux est de visualiser la distribution entière de l'estimé. Nous ferons ceci plus tard.
 
 Visualisons la table de sommaire :
 
@@ -1125,6 +1151,8 @@ paramsdt[, c(2:4) := paramsdt[, c(2:4)] + b_Intercept]
 
 Ensuite **l'étape 2**.
 
+Ici, souvenez-vous que la fonction de lien nous a permis d'estimer un modèle sur une échelle linéaire. Toutefois, cette échelle est difficilement interprétable. On doit donc ramener les prédictions à l'échelle de notre variable, soit, en probabilités.
+
 ```{r}
 # Changer en format long
 preds3 <- melt(
@@ -1146,7 +1174,7 @@ medians <- preds3[, .(median = median(value)), by = exposure_type]
 
 #### Visualisation
 
-On peut maintenant produire les graphiques. À titre de rappel, on a la même pente pour l'ensemble des types d'exposition, et des ordonnées à l'origine qui diffèrent (c-à-d, les moyennes de toxicité diffèrent). Ici, on rapporte la droite pour le type d'exposition `F`. 
+On peut maintenant produire les graphiques. À titre de rappel, on a la même pente pour l'ensemble des types d'exposition, et des ordonnées à l'origine qui diffèrent (c-à-d, les moyennes de toxicité diffèrent). Ici, la droite correspond au type d'exposition `F`. 
 
 Commençons avec les différences de moyennes.
 
@@ -1155,23 +1183,25 @@ ggplot(
   data = preds3,
   aes(x = value, fill = exposure_type)
 ) +
-  geom_density(alpha = 0.25, colour = "black") +
+  geom_density(alpha = 0.5, colour = "black") +
   geom_vline(
     data = medians,
     aes(xintercept = median, color = exposure_type),
     linetype = "dashed"
   ) +
-  scale_fill_discrete(
+  scale_fill_manual(
     labels = c(
       "Flux", "NS",
       "Renouvellement", "Statique"
-    )
+    ),
+    values = c("#440154", "#3d4d8a", "#24878e", "#40bd72")
   ) +
-  scale_colour_discrete(
+  scale_colour_manual(
     labels = c(
       "Flux", "NS",
       "Renouvellement", "Statique"
-    )
+    ),
+    values = c("#440154", "#3d4d8a", "#24878e", "#40bd72")
   ) +
   #scale_x_continuous(breaks = seq(0.25, 1, 0.25), limits = c(0.25, 1)) +
   xlab("\nProbabilité d'être plus toxique") +
@@ -1245,13 +1275,13 @@ ggarrange(preds1, preds2)
 
 ## Complexité des données biologiques
 
-En explorant nos données, nous avons vu qu'il semble y avoir une structure hiérarchique, où la concentration effective varie entre différents groupes.
+En explorant nos données, nous avons vu qu'il semble y avoir une structure hiérarchique, où la concentration effective varie entre les espèces.
 
 Ceci est un exemple concret démontrant comment les données biologique sont souvent complexes, et structurées à différentes échelles.
 
 Reprenons l'exemple de la concentration effective en fonction de la température du médium.
 
-```{r plot14, fig.height=5, fig.width=6, echo = FALSE}
+```{r plot14, fig.height=5, fig.width=6, echo =FALSE}
 ggplot(
   data = anim,
   aes(
@@ -1261,6 +1291,9 @@ ggplot(
     colour = tax_gs
   )
 ) +
+  xlab("Température moyenne en degrés Celsius") +
+  ylab("log(concentration moyenne (mg/L))") +
+  scale_colour_viridis(option = "D", discrete = TRUE) +
   geom_point(alpha = 0.25) +
   theme_classic(base_size = 14) +
   theme(legend.position = "none")
@@ -1298,6 +1331,8 @@ ggplot(
 ) +
   geom_point(alpha = 0.25) +
   geom_smooth(method = lm, se = FALSE) +
+  xlab("Température moyenne en degrés Celsius") +
+  ylab("log(concentration moyenne (mg/L))") +
   theme_classic(base_size = 14) +
   theme(legend.position = "none")
 ```
