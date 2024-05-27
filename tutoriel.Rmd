@@ -1107,11 +1107,11 @@ Nous allons utiliser les 4 premières colones pour produire le graphique. Ces 4 
 
 Nous devons manipuler un peu la table pour faire le graphique.
 
-On veut :
+On veut :  
 
-**1.** calculer la moyenne pour les expositions `NR`, `R`, et `S`
-**2.** ramener les valeurs à une échelle de probabilité
-**3.** calculer la médiane des distributions postérieures
+1. calculer la moyenne pour les expositions `NR`, `R`, et `S`
+2. ramener les valeurs à une échelle de probabilité
+3. calculer la médiane des distributions postérieures
 
 Commençons par **l'étape 1**.
 
@@ -1241,13 +1241,262 @@ preds2 <- ggplot() +
 ggarrange(preds1, preds2)
 ```
 
-# 7. Modèles linéaires (généralisés) hiérarchiques
+# 8. Théorie : HGLM
 
-problème de plusieurs paramètres quand on a plusieurs facteurs
+## Complexité des données biologiques
 
-Biological and ecological data are often messy. Most of the time there is an inherent structure to data (i.e. single observations are not always independent), relationships between variables of interest might differ depending on grouping factors like species, and more often than not sample sizes are low, making it difficult to fit models that require many parameters to be estimated.
+En explorant nos données, nous avons vu qu'il semble y avoir une structure hiérarchique, où la concentration effective varie entre différents groupes.
 
-# 8. Modèles linéaires (généralisés) hiérarchiques multivariés
+Ceci est un exemple concret démontrant comment les données biologique sont souvent complexes, et structurées à différentes échelles.
+
+Reprenons l'exemple de la concentration effective en fonction de la température du médium.
+
+```{r plot14, fig.height=5, fig.width=6, echo = FALSE}
+ggplot(
+  data = anim,
+  aes(
+    x = media_temperature_mean,
+    y = result_conc1_mean_log,
+    fill = tax_gs,
+    colour = tax_gs
+  )
+) +
+  geom_point(alpha = 0.25) +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "none")
+```
+
+Ici, chaque code de couleur correspond à un taxon différent. À partir de ce graphique, deux questions peuvent nous venir en tête :  
+
+1. Est-ce que les taxons ont la même concentration effective moyenne?
+2. Est-ce que la relation entre la concentration effective et la température change selon les taxons?
+
+Pour la première question, notre réflexe pourrait être de faire le même GLM que nous avons fait à la section précédente, et d'ajouter le taxon comme variable catégorique. Pour la seconde question, on pourrait spécifier un modèle de type ANCOVA, en modélisant une interaction entre la température et le taxon.
+
+On aurait un modèle de type :
+
+```{r, eval=FALSE}
+result_conc1_mean_log ~
+  test_exposure_type +
+  Ztax_lh_amd +
+  Zmedia_temperature_mean +
+  tax_gs +
+  Zmedia_temperature_mean:tax_gs
+```
+
+Toutefois, on se retrouve avec un gros problème ici. Visualisons-le :
+
+```{r plot15, fig.height=5, fig.width=6, echo = FALSE}
+ggplot(
+  data = anim,
+  aes(
+    x = media_temperature_mean,
+    y = result_conc1_mean_log,
+    fill = tax_gs,
+    colour = tax_gs
+  )
+) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = lm, se = FALSE) +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "none")
+```
+
+Nous avons 105 espèces, et donc 105 droites à estimer. Cela signifie que le modèle doit estimer :
+
+- 105 ordonnées à l'origine
+- 105 pentes
+
+C'est donc **210 paramètres de + à estimer!** Si on utilisait l'approche fréquentiste pour l'analyse de données, ça nous coûterait cher en degrés de liberté. Ceci est moins problématique pour l'approche Bayésienne car on n'utilise pas la *valeur p*.
+
+Fréquentiste ou Bayésien, le plus important, c'est qu'en estimant 210 paramètres, la sortie de la fonction `summary()` serait cauchemardesque. Pensez-y! Plus haut, nous avions un `Intercept_b` qui utilisait le type d'exposition `F` comme référence. Ensuite, le modèle calculait la différence entre les autres types d'exposition et `F`. Je vous laisse imaginer celà avec 105 taxons...
+
+## L'avantage des modèles hiérarchiques
+
+Les modèles hiérarchiques nous permettent de palier aux problèmes que nous avons vu plus haut :
+
+- Ils nous permettent de séparer des effets populationnels d'effets groupés.
+- Ils nous permettent de modéliser la structure hiérarchique de nos données en **diminuant le nombre de paramètres à estimer**.
+- Ils exploitent les paramètres populationnels pour estimer les paramètres de groupe même quand la taille d'échantillon est faible pour un groupe.
+
+De plus, rappelez vous qu'une des conditions de base dans les modèles linéaires est que les échantillons doivent être indépendants. Dans l'exemple que nous avons vu, nous avons plusieurs observations par espèce, ce qui contrevient à cette condition d'indépendance.
+
+Les modèles hiérarchiques permettent donc aussi de modéliser des facteurs associés à la structure de votre expérience. Voici quelques exemples :
+
+- On peut intégrer les quadrats, ou les sites
+- On peut ajouter les individus si des données sont prises à répétition
+- Permettent de considérer l'aspect temporel dans les données
+
+Nous verrons comment ces principes fonctionnent dans la prochaine section avec les concepts d'**effets fixes** et d'**effets aléatoires**.
+
+## Effets fixes et aléatoires
+
+Reprenons l'exemple du modèle que nous avons construit précédemment.
+
+On s'intéresse toujours à estimer comment la concentration effective varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience. On ajoute toutefois les espèces comme effet aléatoire.
+
+Ici, on veut donc savoir si les espèces varient dans leur concentration effective moyenne, et si la relation entre celle-ci et la température change d'une espèce à l'autre.
+
+Voici l'équation de notre modèle :
+
+$$\eta = X\beta + Z\gamma + U\delta + 1\beta_0 + \epsilon$$
+
+où :
+
+- $\eta$ est le prédicteur linéaire
+- $X$ est la matrice de conception du type d'exposition
+- $\beta$ est le vecteur des coefficients du type d'exposition
+- $Z$ est la matrice de conception des prédicteurs linéaires (longévité et température), ce sont les effets fixes
+- $\gamma$ est le vecteur des coefficients du type d'exposition des prédicteurs linéaires
+- $U$ est la matrice de conception pour l'effet aléatoire,
+- $\delta$ est le vecteur des coefficients des espèces, c'est l'effet aléatoire
+- $1$ est le vecteur de 1 pour l'ordonnée à l'origine
+- $\beta_0$ est l'ordonnée à l'origine pour le niveau de référence
+
+Les effets fixes, représentés par les coefficients $\beta$ et $\gamma$, modélisent les effets moyens des variables explicatives sur la variable réponse. Ils sont constants pour toutes les unités observées (c.-à.-d., les espèces par exemple).
+
+Les effets aléatoires, quant à eux, représentés par les coefficients $\delta$, modèlent la variation entre les différents niveaux d'une variable catégorique. Dans le contexte de notre exemple, on intègre les différences entre les espèces en termes de sensibilité à la concentration toxique en ajoutant un effet aléatoire.
+
+En ajoutant cet effet aléatoire, le modèle peut capturer une part supplémentaire de la variabilité des données qui ne peut pas être expliquée par les prédicteurs fixes. Cela permet de mieux ajuster le modèle aux données et d'améliorer les prédictions.
+
+À retenir :
+
+- Les effets fixes peuvent être des variables catégoriques **ou** des variables continues 
+- Les effets aléatoires sont **strictement** des variables catégoriques
+
+### Ordonnées à l'origine aléatoires
+
+Il existe deux types de modèles hiérarchiques. Dans le premier, on assume que la relation entre y et x est la même pour l'ensemble de nos groupes, mais que la moyenne de y varie entre les groupes.
+
+Ce type de modèle hiérarchique se nomme en anglais "random intercepts model", ou modèle d'ordonnées à l'origine aléatoires.
+
+Voici à quoi ressemble ce type de modèle pour des données hiérarchiques.
+
+```{r include=FALSE}
+library(lme4)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Number of observations per group
+n_per_group <- 200
+
+# Create a data frame with grouping factor 'group'
+data <- data.frame(
+  x = rep(rnorm(n_per_group), 6),
+  group = rep(letters[1:6], each = n_per_group)
+)
+
+# Function to generate y based on x and group
+generate_y <- function(x, group) {
+  if (group == "a") {
+    return(2 * x + rnorm(length(x), mean = 0, sd = 3))
+  } else if (group == "b") {
+    return(3 * x + rnorm(length(x), mean = 4, sd = 2))
+  } else if (group == "c") {
+    return(4 * x + rnorm(length(x), mean = 2, sd = 1))
+  } else if (group == "d") {
+    return(5 * x + rnorm(length(x), mean = -1, sd = 3))
+  } else if (group == "e") {
+    return(6 * x + rnorm(length(x), mean = -2, sd = 2))
+  } else {
+    return(7 * x + rnorm(length(x), mean = -6, sd = 3))
+  }
+}
+
+# Generate y based on x and group
+data$y <- mapply(generate_y, data$x, data$group)
+data$group <- as.factor(data$group)
+
+# Fit models
+lm_intercepts <- lmer(y ~ x + (1 | group), data = data)
+lm_slopes <- lmer(y ~ x + (1 + x | group), data = data)
+
+# Extract BLUPs
+blups_intercepts <- coef(lm_intercepts)$group
+blups_slopes <- coef(lm_slopes)$group
+
+# Combine into a single dataframe
+blups_intercepts <- data.frame(
+  group = rownames(blups_intercepts),
+  intercept = as.numeric(blups_intercepts[, 1]),
+  slope = as.numeric(blups_intercepts[, 2])
+)
+
+blups_slopes <- data.frame(
+  group = rownames(blups_slopes),
+  intercept = as.numeric(blups_slopes[, 1]),
+  slope = as.numeric(blups_slopes[, 2])
+)
+
+blups <- rbind(
+  blups_intercepts,
+  blups_slopes
+)
+blups <- cbind(
+  blups,
+  model = c(
+    rep("Ordonnées à l'origine aléatoires", 6),
+    rep("Pentes aléatoires", 6)
+  )
+)
+```
+
+```{r fig.height=5, fig.width=6, echo = FALSE}
+# Plot the data
+ggplot() +
+  geom_point(
+    data = data,
+    aes(x = x, y = y, colour = group),
+    alpha = 0.25
+  ) +
+  geom_abline(
+    data = blups[1:6, ],
+    aes(intercept = intercept, slope = slope, colour = group)
+  ) +
+  geom_abline(
+    intercept = fixef(lm_intercepts)[1],
+    slope = fixef(lm_intercepts)[2],
+    linewidth = 1,
+    linetype = "dashed",
+    colour = "black"
+  ) +
+  theme_classic(base_size = 14)
+```
+
+Ici on estime un seul paramètre...
+
+### Pentes aléatoires
+
+Deuxième type de modèle pentes aléatoires
+
+```{r fig.height=5, fig.width=6, echo = FALSE}
+# Plot the data
+ggplot() +
+  geom_point(
+    data = data,
+    aes(x = x, y = y, colour = group),
+    alpha = 0.25
+  ) +
+  geom_abline(
+    data = blups[7:12, ],
+    aes(intercept = intercept, slope = slope, colour = group)
+  ) +
+  geom_abline(
+    intercept = fixef(lm_slopes)[1],
+    slope = fixef(lm_slopes)[2],
+    linewidth = 1,
+    linetype = "dashed",
+    colour = "black"
+  ) +
+  theme_classic(base_size = 14)
+```
+
+# 9. Exemple: HGLM avec les données ADORE
+
+Pour mieux visualiser les relations, nous ferons cette fois-ci un HLM en utilisant le log de la concentration effective moyenne.
+
+# 10. Théorie: MHGLM
 
 # X. Informations complémentaires
 
