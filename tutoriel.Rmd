@@ -70,6 +70,7 @@ library(bayesplot)
 library(ggplot2)
 library(ggpubr)
 library(viridis)
+library(ggExtra)
 
 # Pour générer de jolies tables
 library(knitr)
@@ -84,6 +85,22 @@ Le jeu de données que nous utiliserons pour l'atelier se nomme ADORE et provien
 Vous pouvez trouver les données originales sur le portail du [Eawag Research Data Institutional Collection](https://opendata.eawag.ch/dataset/adore).
 
 Le jeu de données ADORE contient une myriade d'informations sur des expériences écotoxicologiques effectuées sur des espèces de poisson, de crustacés, et d'algues. L'objectif des données ADORE est de concerter des informations sur la toxicité aquatique accrue de différents composés chimiques sur des espèces pour faire de la modélisation prédictive.
+
+## Modèles
+
+Les modèles estimés durant l'atelier peuvent prendre un certain temps. Après avoir téléchargé les dossiers de l'atelier (dans ce dépôt GitHub)[https://github.com/quantitative-ecologist/Atelier-CSL-EcotoQ], vous pouvez effectuer ces commandes pour les importer dans votre session:
+
+```{r , include=FALSE, eval=FALSE}
+glm1 <- readRDS(
+  file = file.path(getwd(), "outputs", "glm1.rds")
+)
+
+hglm <- readRDS(
+  file = file.path(getwd(), "outputs", "hglm.rds")
+)
+```
+
+Cela vous évitera d'avoir à estimer les paramètres durant l'atelier, mais vous pourrez tout autant manipuler les résultats et produire les figures.
 
 # 2. Une note sur l'inférence Bayésienne
 
@@ -913,7 +930,7 @@ Maintenant que notre modèle a terminé son exécution, il est essentiel de fair
 Commençons par extraire les échantillons des distributions à posteriori dans un `data.frame` pour les manipuler.
 
 ```{r}
-params <- as_draws_df(
+params1 <- as_draws_df(
   x = glm1, add_chain = TRUE,
   regex = TRUE
 )
@@ -926,10 +943,14 @@ La première chose que nous allons faire est de vérifier si les chaînes de Mar
 Nous pouvons déduire que les chaînes ont convergé si les "trace plots" sont homogènes.
 
 ```{r plot10, cache=TRUE}
+pars1 <- c(
+  "b_Intercept", "b_test_exposure_typeNR", "b_test_exposure_typeR",
+  "b_test_exposure_typeS", "b_Ztax_lh_amd", "b_Zmedia_temperature_mean"
+)
+
 bayesplot::mcmc_trace(
-  params,
-  regex_pars = "b",
-  np = nuts_params(glm1)
+  params1,
+  pars = pars1
 )
 ```
 
@@ -969,7 +990,7 @@ Notre modèle semble très bien ajusté aux données!
 
 En somme, nos inspections indiquent que le modèle est très bon. Toutefois, je vous encourage à consulter la section sur les inspections additionnelles pour mieux diagnostiquer vos modèles.
 
-## Interprétations
+## Résultats
 
 ### Sommaire des paramètres
 
@@ -1013,6 +1034,7 @@ Quelques spécifications:
 
 - l'argument `spaghetti=` va chercher des prédictions posterieures
 - l'argument `ndraws=` spécifie le nombre de prédictions postérieures (ici, 100)
+- l'argument `robust=` spécifie qu'on veut la médiane de la distribution postérieure des prédictions
 - pour chacune des 100 droites, nous aurons 100 valeurs. C'est le paramètre par défaut de `conditional_effects()`
 
 Il est possible de tracer le graphique directement à partir de la fonction. Toutefois, nous allons plutôt conserver les valeurs dans une table afin d'avoir plus de flexibilité sur les paramètres graphiques.
@@ -1023,9 +1045,11 @@ Il est possible de tracer le graphique directement à partir de la fonction. Tou
 tab1 <- conditional_effects(
   x = glm1, method = "posterior_epred",
   effects = "Zmedia_temperature_mean",
-  spaghetti = TRUE, ndraws = 100
+  spaghetti = TRUE, ndraws = 100,
+  robust = TRUE, prob = 0.89
 )
 spag1 <- attr(tab1$Zmedia_temperature_mean, "spaghetti")
+tab1 <- data.table(tab1[[1]])
 ```
 
 **Longévité**
@@ -1034,9 +1058,11 @@ spag1 <- attr(tab1$Zmedia_temperature_mean, "spaghetti")
 tab2 <- conditional_effects(
   x = glm1, method = "posterior_epred",
   effects = "Ztax_lh_amd",
-  spaghetti = TRUE, ndraws = 100
+  spaghetti = TRUE, ndraws = 100,
+  robust = TRUE, prob = 0.89
 )
 spag2 <- attr(tab2$Ztax_lh_amd, "spaghetti")
+tab2 <- data.table(tab2[[1]])
 ```
 
 **Type d'exposition**
@@ -1048,7 +1074,7 @@ Cela nous permettra de comparer les moyennes entre chaque type d'exposition avec
 Visualisons l'objet:
 
 ```{r}
-params
+params1
 ```
 
 Nous allons utiliser les 4 premières colones pour produire le graphique. Ces 4 colones sont:
@@ -1070,10 +1096,10 @@ Commençons par **l'étape 1**.
 
 ```{r}
 # Transformer en data.table pour manipuler
-paramsdt <- data.table(params)
+paramsdt1 <- data.table(params1)
 
 # On calcule les vraies moyennes
-paramsdt[, c(2:4) := paramsdt[, c(2:4)] + b_Intercept]
+paramsdt1[, c(2:4) := paramsdt1[, c(2:4)] + b_Intercept]
 ```
 
 Ensuite **l'étape 2**.
@@ -1082,21 +1108,21 @@ Ici, souvenez-vous que la fonction de lien nous a permis d'estimer un modèle su
 
 ```{r}
 # Changer en format long
-preds3 <- melt(
-  data = paramsdt[, c(1:4)],
+preds1 <- melt(
+  data = paramsdt1[, c(1:4)],
   variable.name = "exposure_type",
-  measure = colnames(paramsdt[, c(1:4)])
+  measure = colnames(paramsdt1[, c(1:4)])
 )
 
 # Ramener à l'échelle de probabilité
-preds3[, value := plogis(value)]
+preds1[, value := plogis(value)]
 ```
 
 Finalement, **l'étape 3**.
 
 ```{r}
 # Calculer les médianes
-medians <- preds3[, .(median = median(value)), by = exposure_type]
+medians1 <- preds1[, .(median = median(value)), by = exposure_type]
 ```
 
 #### Visualisation
@@ -1107,12 +1133,12 @@ Commençons avec les différences de moyennes.
 
 ```{r plot12, fig.height=5, fig.width=6, cache=TRUE}
 ggplot(
-  data = preds3,
+  data = preds1,
   aes(x = value, fill = exposure_type)
 ) +
   geom_density(alpha = 0.5, colour = "black") +
   geom_vline(
-    data = medians,
+    data = medians1,
     aes(xintercept = median, color = exposure_type),
     linetype = "dashed"
   ) +
@@ -1141,7 +1167,7 @@ ggplot(
 Finalement, les droites pour la température et la longévité pour le type d'exposition `F`.
 
 ```{r plot13, fig.height=4, fig.width=8}
-preds1 <- ggplot() +
+glm_p1 <- ggplot() +
   geom_point(
     data = anim,
     aes(
@@ -1160,6 +1186,15 @@ preds1 <- ggplot() +
     linewidth = 1, alpha = 0.05,
     colour = "#440154"
   ) +
+  geom_line(
+    data = tab1,
+    aes(
+      x = Zmedia_temperature_mean,
+      y = estimate__
+    ),
+    linewidth = 0.5,
+    colour = "yellow"
+  ) +
   ylab("Toxicité\n") +
   scale_y_continuous(
     breaks = seq(0, 1, 0.25),
@@ -1168,7 +1203,7 @@ preds1 <- ggplot() +
   xlab("\nTempérature moyenne normalisée") +
   theme_classic(base_size = 14)
 
-preds2 <- ggplot() +
+glm_p2 <- ggplot() +
   geom_point(
     data = anim,
     aes(
@@ -1187,16 +1222,35 @@ preds2 <- ggplot() +
     linewidth = 1, alpha = 0.05,
     colour = "#440154"
   ) +
+  geom_line(
+    data = tab2,
+    aes(
+      x = Ztax_lh_amd,
+      y = estimate__
+    ),
+    linewidth = 0.5,
+    colour = "yellow"
+  ) +
   ylab("Toxicité\n") +
   scale_y_continuous(
     breaks = seq(0, 1, 0.25),
     limits = c(0, 1)
   ) +
-  xlab("\nLongévité moyenne") +
+  xlab("\nLongévité moyenne normalisée") +
   theme_classic(base_size = 14)
 
-ggarrange(preds1, preds2)
+ggarrange(glm_p1, glm_p2)
 ```
+
+## Interprétations
+
+Nos résultats montrent que:
+
+1. Il y a 40% de chances que la concentration effective soit plus toxique lorsque les conditions expérimentales utilisent un flux d'eau continu. Nous avons de bonnes preuves que ce pourcentage ne diffère pas entre un traitement avec renouvellement. Nous avons également de fortes preuves que des conditions statiques augmentent les changes que la concentration effective soit toxique par rapport à un flux continu. Les expériences où le traitement n'est pas spécifié ont les plus hautes chances que la concentration effective soit toxique. 
+
+2. Nous avons de fortes preuves que la probabilité que la concentration effective soit toxique diminue avec la température du médium. Les chances que la concentration soit toxique diminuent d'environ 25% des plus basses aux plus hautes températures.
+
+3. Nous avons de fortes preuves que la probabilité que la concentration effective soit toxique augmente avec la longévité moyenne de l'espèce. À partir des espèces à courte durée de vie, on observe une augmentation d'environ 10% à 15% dans la probabilité pour les espèces à plus haute longévité.
 
 # 8. Théorie: les HGLM
 
@@ -1283,10 +1337,9 @@ Les modèles hiérarchiques nous permettent de palier aux problèmes que nous av
 - permettent de séparer des effets populationnels d'effets groupés
 - permettent de modéliser la structure hiérarchique de nos données en **réduisant le nombre de paramètres à estimer**
 - exploitent les paramètres populationnels pour estimer les paramètres de groupe même quand la taille d'échantillon est faible pour un groupe
+- tiennent compte de la nonindépendance des échantillons (ex. nous avons plusieurs observations par espèce dans nos données)
 
-De plus, rappelez vous qu'une des conditions de base dans les modèles linéaires est que les échantillons doivent être indépendants. Dans l'exemple que nous avons vu, nous avons plusieurs observations par espèce, ce qui contrevient à cette condition d'indépendance.
-
-Les modèles hiérarchiques permettent donc de modéliser des facteurs associés à la structure de vos expériences. Voici quelques exemples:
+Ainsi, les modèles hiérarchiques permettent de modéliser des facteurs associés à la structure de vos expériences. Voici quelques exemples:
 
 - On peut intégrer les quadrats, ou les sites
 - On peut ajouter les individus si des données sont prises à répétition
@@ -1298,7 +1351,7 @@ Nous verrons comment ces principes fonctionnent dans la prochaine section avec l
 
 Reprenons l'exemple du modèle que nous avons construit précédemment.
 
-On s'intéresse toujours à estimer comment la concentration effective varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience. On ajoute toutefois **les espèces comme effet aléatoire**.
+On s'intéresse toujours à estimer comment la concentration effective ($Y$) varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience ($X$). On ajoute toutefois **les espèces comme effet aléatoire** ($U$).
 
 Ici, on veut donc savoir si les espèces varient dans leur concentration effective moyenne, et si la relation entre celle-ci et la température change d'une espèce à l'autre.
 
@@ -1313,7 +1366,7 @@ où les paramètres ajoutés sont:
 - $U_2$ est la matrice de conception pour les pentes aléatoires
 - $\delta_2$ est le vecteur des pentes aléatoires des espèces
 
-**Les effets fixes**, représentés par les coefficients $\beta$ et $\gamma$, modélisent les effets moyens des variables explicatives sur la variable réponse. Ils sont constants pour toutes les unités observées (c.-à.-d., les espèces par exemple). Ce sont les effets que nous avons estimés précédemment dans notre GLM. Celà ne change donc pas. Les effets fixes peuvent être des variables catégoriques **ou** des variables continues 
+**Les effets fixes**, représentés par les coefficients $\beta$ et $\gamma$, modélisent les effets moyens des variables explicatives sur la variable réponse. Ils sont constants pour toutes les unités observées (c.-à.-d., les espèces par exemple). Ce sont les effets que nous avons estimés précédemment dans notre GLM. Celà ne change donc pas. Les effets fixes peuvent être des variables catégoriques **ou** des variables continues.
 
 **Les effets aléatoires**, quant à eux, représentés par les coefficients $\delta_1$ et $\delta_2$, modélisent la variation entre les différents niveaux d'une variable catégorique. Dans le contexte de notre exemple, on intègre les différences entre les espèces en termes de sensibilité à la concentration en ajoutant un effet aléatoire. Les effets aléatoires sont **strictement** des variables catégoriques
 
@@ -1323,45 +1376,17 @@ En ajoutant cet effet aléatoire, le modèle peut capturer une part supplémenta
 
 Il existe **deux types de modèles hiérarchiques** correspondant aux effets aléatoires estimés.
 
-1. Pour le **premier type**, on assume que la relation entre $Y$ et $X$ est la même pour l'ensemble de nos groupes, mais que la moyenne de $Y$ varie entre les groupes. C'est donc un modèle où l'on estime une moyenne pour chacun des niveaux de notre facteur d'intérêt, mais pour lequel la relation entre $Y$ et $X$ est la même que l'effet fixe pour l'ensemble des niveaux du facteur. Ce type de modèle hiérarchique se nomme **modèle d'ordonnées à l'origine aléatoires**.
+### Modèle d'ordonnées à l'origine aléatoires
 
-2. Le **second type** de modèle est construit à partir de la mécanique du modèle d'ordonnées à l'origine aléatoires. C'est le **modèle de pentes aléatoires**. Comme le nom l'indique, c'est un modèle où chaque niveau du facteur peut maintenant avoir sa propre relation entre $Y$ et $X$.
-
-Comme nous l'avons soulevé plus haut, un avantage majeur des modèles hiérarchiques est qu'ils réduisent le nombre de paramètres à estimer. Au début de cette section, nous avons vu que si nous faisions une ANCOVA, nous aurions 210 paramètres à estimer. En exploitant les effets aléatoires **nous réduisons ce nombre de paramètres à 2 seulement!**
-
-La raison est qu'au lieu d'estimer la différence d'ordonnée à l'origine pour chaque niveau du facteur ainsi que la différence de pente, un modèle hiérarchique va plutôt calculer chaque valeur pour chaque niveau (c.-à-d., moyenne et pente), et ensuite **estimer une variance**.
-
-On a donc: 
-
-- la variance entre les ordonnées à l'origine (c.-à-d., les moyennes des niveaux du facteur)
-- la variance entre les pentes (c.-à-d., la relation entre $Y$ et $X$ pour chaque niveau du facteur)
-
-Ce que la variance nous dit:  
-
-- une variance faible entre les ordonnées à l'origine = la moyenne de $Y$ de chaque espèce est semblable
-- une variance faible entre les pentes = la relation entre $Y$ et $X$ pour chaque espèce est semblable
-
-On assume que les ordonnées à l'origine et les pentes suivent une distribution normale telle que:
-
-$$
-\begin{bmatrix} \delta_1 \\ \delta_2 \end{bmatrix} \sim \text{MVN} \left( \begin{bmatrix} 0 \\ 0 \end{bmatrix}, \Omega \right)
-$$
-
-où $\Omega$ est une matrice de covariance telle que:
-
-$$
-\Omega = \begin{bmatrix} \text{var}(\delta_1) & \text{cov}(\delta_1, \delta_2) \\ \text{cov}(\delta_2, \delta_1) & \text{var}(\delta_2) \end{bmatrix}
-$$
-
-### Ordonnées à l'origine aléatoires
+Le premier type de modèle est le **modèle d'ordonnées à l'origine aléatoires**. Ce modèle assume que la relation entre $Y$ et $X$ est la même pour l'ensemble de nos groupes, mais que la moyenne de $Y$ varie entre les groupes. C'est donc un modèle où l'on estime une moyenne pour chacun des niveaux de notre facteur d'intérêt, mais pour lequel la relation entre $Y$ et $X$ est la même que l'effet fixe pour l'ensemble des niveaux du facteur.
 
 Voici à quoi ressemble ce type de modèle pour des données hiérarchiques.
 
 On peut voir que :
 
-- chaque groupe a une ordonnée à l'origine différente
+- chaque groupe a une ordonnée à l'origine différente (c.-à-d., une moyenne différente)
 - tous les groupes on la même pente, suivant la tendance populationnelle (droite pointillée)
-- pour l'effet aléatoire, nous avons 1 paramètre étant la variance entre les ordonnées à l'origine
+- pour l'effet aléatoire, nous avons **1 paramètre** étant la **variance entre les ordonnées à l'origine**
 
 ```{r include=FALSE}
 library(lme4)
@@ -1433,7 +1458,7 @@ blups <- cbind(
 )
 ```
 
-```{r fig.height=5, fig.width=6, echo = FALSE}
+```{r plot16, fig.height=5, fig.width=6, echo = FALSE}
 # Plot the data
 ggplot() +
   geom_point(
@@ -1452,21 +1477,24 @@ ggplot() +
     linetype = "dashed",
     colour = "black"
   ) +
+  ylab("Y") +
+  xlab("X") +
   theme_classic(base_size = 14)
 ```
 
+### Modèle de pentes aléatoires
 
-### Pentes aléatoires
+Le **second type** de modèle est construit à partir de la mécanique du modèle d'ordonnées à l'origine aléatoires. C'est le **modèle de pentes aléatoires**. Comme le nom l'indique, c'est un modèle où chaque niveau du facteur peut maintenant avoir sa propre relation entre $Y$ et $X$.
 
 Voici à quoi ressemble ce type de modèle pour des données hiérarchiques.
 
 On peut voir que :
 
-- chaque groupe a une ordonnée à l'origine différente
-- chaque groupe a une pente différente
-- pour l'effet aléatoire, nous avons 2 paramètres étant la variance entre les ordonnées à l'origine et la variance entre les pentes
+- chaque groupe a une ordonnée à l'origine différente (c.à-d., une moyenne différente)
+- chaque groupe a une pente différente (c.-à-d., une relation propre entre $Y$ et $X$)
+- pour l'effet aléatoire, nous avons **2 paramètres** étant la **variance entre les ordonnées à l'origine** et la **variance entre les pentes**
 
-```{r fig.height=5, fig.width=6, echo = FALSE}
+```{r plot17, fig.height=5, fig.width=6, echo = FALSE}
 # Plot the data
 ggplot() +
   geom_point(
@@ -1485,12 +1513,61 @@ ggplot() +
     linetype = "dashed",
     colour = "black"
   ) +
+  ylab("Y") +
+  xlab("X") +
   theme_classic(base_size = 14)
 ```
 
+Comme nous l'avons soulevé plus haut, un avantage majeur des modèles hiérarchiques est qu'ils réduisent le nombre de paramètres à estimer. Au début de cette section, nous avons vu que si nous faisions une ANCOVA, nous aurions 210 paramètres à estimer. En exploitant les effets aléatoires **nous réduisons ce nombre de paramètres à 2 seulement!**
+
+La raison est qu'au lieu d'estimer la différence d'ordonnée à l'origine pour chaque niveau du facteur ainsi que la différence de pente, un modèle hiérarchique va plutôt calculer chaque valeur pour chaque niveau (c.-à-d., moyenne et pente), et ensuite **estimer une variance**.
+
+On a donc: 
+
+- la variance entre les ordonnées à l'origine (c.-à-d., les moyennes des niveaux du facteur)
+- la variance entre les pentes (c.-à-d., la relation entre $Y$ et $X$ pour chaque niveau du facteur)
+
+Ce que la variance nous dit:  
+
+- une variance faible entre les ordonnées à l'origine = la moyenne de $Y$ de chaque espèce est semblable
+- une variance faible entre les pentes = la relation entre $Y$ et $X$ pour chaque espèce est semblable
+
+Nous verrons celà dans la prochaine section.
+
 # 9. Exemple: HGLM avec les données ADORE
 
-Pour mieux visualiser les relations, nous ferons cette fois-ci un HLM en utilisant le log de la concentration effective moyenne.
+Nous sommes maintenant prêt.e.s à appliquer notre modèle dans R.
+
+Pour mieux visualiser les relations le long de la distribution des points, nous ferons cette fois-ci un HLM en utilisant le log de la concentration effective moyenne. Notre modèle devra donc respecter les suppositions de base des modèles linéaires.
+
+Rappelons le modèle:
+
+$$\eta = X\beta + Z\gamma + U_1\delta_1 + U_2\delta_2 + 1\beta_0 + \epsilon$$
+
+où les ordonnées à l'origine et les pentes aléatoires suivent une distribution Gaussienne multivariée tel que:
+
+$$
+\begin{bmatrix} \delta_1 \\ \delta_2 \end{bmatrix} \sim \text{MVN} \left( \begin{bmatrix} 0 \\ 0 \end{bmatrix}, \Omega \right)
+$$
+
+où $\Omega$ est une matrice de covariance tel que:
+
+$$
+\Omega = \begin{bmatrix} \text{var}(\delta_1) & \text{cov}(\delta_1, \delta_2) \\ \text{cov}(\delta_2, \delta_1) & \text{var}(\delta_2) \end{bmatrix}
+$$
+
+Nous verrons plus tard comment cette matrice de covariance nous permet de savoir si la concentration effective moyenne des espèces est associée à leur réponse à la température du médium.
+
+## Construction du modèle
+
+La librairie `brms` utilise les conventions de `lme4` pour spécifier les modèles.
+
+Ainsi, on indique qu'on veut que le modèle estime:
+
+- des ordonnées à l'origine aléatoires pour chaque espèce `(1 | tax_gs)`
+- des pentes aléatoires pour chaque espèce `(1 + Zmedia_temperature_mean | tax_gs)`
+
+En indiquant le terme `(1 + Zmedia_temperature_mean | tax_gs)`, le modèle effectuera les deux estimations.
 
 ```{r}
 form2 <- brmsformula(
@@ -1501,6 +1578,17 @@ form2 <- brmsformula(
   (1 + Zmedia_temperature_mean | tax_gs)
 )
 ```
+
+## Informations à priori
+
+On doit à nouveau spécifier les informations à priori. Ici, on utilise les mêmes informations que pour le glm, mais **on ajoute**:  
+
+- les informations à priori sur les **deux paramètres de variance**
+- les informations à priori sur la **matrice de covariance**
+
+On spécifie que les écarts-type des ordonnées à l'origine et des pentes aléatoires suivront une distribution Gaussienne tronquée. `brms` spécifie automatiquement une distribution tronquée lorsqu'on l'applique à un paramètre de variance car elle ne peut aller sous 0.
+
+Pour la matrice de covariance, le prior `lkj(2)` spécifie qu'on pénalise des covariances qui sont trop élevées. Ainsi, notre modèle sera plus conservateur.
 
 ```{r}
 priors2 <- c(
@@ -1541,9 +1629,34 @@ priors2 <- c(
     class = "sd",
     coef = "Zmedia_temperature_mean",
     group = "tax_gs"
+  ),
+  # Informations à priori sur la matrice de covariance
+  set_prior(
+    "lkj(2)",
+    class = "L",
+    group = "tax_gs"
   )
 )
 ```
+
+## Estimation des paramètres
+
+### Spécifications pour l'estimation MCMC
+
+Voici les spécifications pour l'estimation des paramètres par HMC-NUTS. Pour chacune des 4 chaînes, nous aurons:
+
+- n: 5000
+- réchauffement: n - 1000
+- itérations: n - réchauffement
+- échantillonnage: itérations / échantillonnage = 1000
+
+Notre modèle fera donc 1000 réchauffements (`warmup = 1000`), 4000 itérations (`iter = 5000` où 5000-1000), et échantillonera une valeur de paramètre par bonds de 4 itérations (`thin = 4`).
+
+Nous obtiendrons ainsi 1000 échantillons par chaîne que nous combinerons pour un total de **4000 échantillons postérieurs par paramètre**.
+
+J'ai augmenté le nombre d'itérations pour améliorer la convergence des chaînes.
+
+### Exécution de l'estimateur
 
 ```{r hglm, cache=TRUE}
 hglm <- brm(
@@ -1555,9 +1668,9 @@ hglm <- brm(
   family = gaussian(),
 
   # Les paramètres d'itérations pour le MCMC
-  iter = 2000,
+  iter = 5000,
   warmup = 1000,
-  thin = 1,
+  thin = 4,
   chains = 4,
 
   # Paramètres pour accélérer les calculs
@@ -1597,18 +1710,421 @@ saveRDS(
 )
 ```
 
+## Vérifications du modèle
+
+On extrait l'ensemble des distributions postérieures.
+
+```{r}
+params2 <- as_draws_df(
+  x = hglm, add_chain = TRUE,
+  regex = TRUE
+)
+```
+
+### Convergence des chaînes
+
+Ici, nous devrions vérifier la convergence des chaînes pour tous les paramètres, mais nous allons nous limiter aux effets fixes, aux paramètres de variance, et à la matrice de covariance.
+
+```{r plot18, cache=TRUE}
+pars2 <- c(
+  "b_Intercept", "b_test_exposure_typeNR", "b_test_exposure_typeR",
+  "b_test_exposure_typeS", "b_Ztax_lh_amd", "b_Zmedia_temperature_mean",
+  "sd_tax_gs__Intercept", "sd_tax_gs__Zmedia_temperature_mean",
+  "cor_tax_gs__Intercept__Zmedia_temperature_mean"
+)
+
+bayesplot::mcmc_trace(
+  params2,
+  pars = pars2
+)
+```
+
+Les chaînes de notre modèle semblent avoir très bien convergé.
+
+Vérifions maintenant le $\hat{R}$, le `Bulk_ESS`, et le `Tail_ESS` pour **les effets fixes**:
+
+```{r}
+hglm_t1 <- data.table(
+  round(summary(hglm, prob = 0.89, robust = TRUE)$fixed, digits = 3),
+  keep.rownames = TRUE
+)
+setnames(hglm_t1, old = "rn", new = "Parameter")
+
+hglm_t1[, c(1, 6:8)]
+```
+
+Les valeurs sont très bien!
+
+Maintenant, la même procédure pour **les effets aléatoires**:
+
+```{r}
+hglm_t2 <- data.table(
+  round(summary(hglm, prob = 0.89, robust = TRUE)$random$tax_gs, digits = 3),
+  keep.rownames = TRUE
+)
+setnames(hglm_t2, old = "rn", new = "Parameter")
+
+hglm_t2[, c(1, 6:8)]
+```
+
+Tout est beau!
+
+### Ajustement du modèle
+
+Examinons l'ajustement avec les vérifications prédictives postérieures.
+
+```{r plot19, fig.height=5, fig.width=6, cache=TRUE}
+pp_check(hglm, ndraws = 100)
+```
+
+Le modèle ne semble pas aussi bien ajusté aux données que celui d'avant. Toutefois, pour continuer l'atelier, nous le garderons comme ça. Il serait potentiellement possible de l'améliorer en utilisant des informations à priori plus informatives par exemple.
+
+Finalement, on doit s'assurer que notre modèle respecte les conditions des modèles linéaires par rapport aux résidus.
+
+```{r, cache=TRUE}
+fitt <- fitted(hglm)[, 1]
+res <- residuals(hglm)[, 1]
+```
+
+```{r plot20, fig.height=5, fig.width=6, cache=TRUE}
+inspect_hglm <- ggplot() +
+  geom_point(aes(x = fitt, y = res), alpha = 0.05) +
+  geom_hline(yintercept = 0, colour = "red", linetype = "dashed") +
+  scale_y_continuous(breaks = seq(-8, 8, 4), limits = c(-8, 8)) +
+  scale_x_continuous(breaks = seq(-4, 2, 2), limits = c(-4, 2.5)) +
+  xlab("Valeurs prédites") + ylab("Résidus normalisés") +
+  theme_bw(base_size = 14) +
+  theme(panel.grid = element_blank())
+
+inspect_hglm <- ggExtra::ggMarginal(
+  inspect_hglm,
+  type = "histogram",
+  margins = "y"
+)
+
+inspect_hglm
+```
+
+Les résidus sont suffisemment homogènes autour des valeurs prédites, et ils suivent une distribution Gaussienne!
+
+En somme, nos diagnostics indiquent que notre modèle semble bon!
+
+## Résultats
+
+### Sommaire des paramètres
+
+#### Effets fixes
+
+Commençons par vérifier les paramètres des **effets fixes**:
+
+```{r}
+knitr::kable(hglm_t1[, c(1, 2, 4, 5)])
+```
+
+#### Effets aléatoires
+
+Ensuite, les paramètres des **effets aléatoires**:
+
+```{r}
+knitr::kable(hglm_t2[, c(1, 2, 4, 5)])
+```
+
+Il semble y avoir une importante variation dans les moyennes entre les espèces ainsi que leur réaction à la température.
+
+La corrélation positive entre les ordonnées à l'origine et les pentes indique que plus une espèce à une sensibilité élevée, plus elle est susceptible de répondre fortement à la température.
+
+### Figures
+
+#### Prédictions des effets fixes
+
+**Température**
+
+```{r}
+tab3 <- conditional_effects(
+  x = hglm, method = "posterior_epred",
+  effects = "Zmedia_temperature_mean",
+  spaghetti = TRUE, ndraws = 100,
+  robust = TRUE, prob = 0.89
+)
+spag3 <- attr(tab3$Zmedia_temperature_mean, "spaghetti")
+tab3 <- data.table(tab3[[1]])
+```
+
+**Longévité**
+
+```{r}
+tab4 <- conditional_effects(
+  x = hglm, method = "posterior_epred",
+  effects = "Ztax_lh_amd",
+  spaghetti = TRUE, ndraws = 100,
+  robust = TRUE, prob = 0.89
+)
+spag4 <- attr(tab4$Ztax_lh_amd, "spaghetti")
+tab4 <- data.table(tab4[[1]])
+```
+
+**Type d'exposition**
+
+On va utiliser les distributions postérieures des moyennes prédites de chaque type d'exposition comme on l'a fait avec le GLM. Nous avons déjà extrait ceci durant les inspections et assigné à l'objet `params2`.
+
+Nous allons utiliser les 4 premières colones pour produire le graphique. Ces 4 colones sont:
+
+- `b_Intercept`: la moyenne de l'exposition de type `F`
+- `b_test_exposure_typeNR` est la différence entre `NR` et `F`
+- `b_test_exposure_typeR` est la différentre entre `R` et `F`
+- `b_test_exposure_typeS` est la différentre entre `S` et `F`
+
+On veut:  
+
+1. calculer la moyenne pour les expositions `NR`, `R`, et `S`
+2. calculer la médiane des distributions postérieures
+
+Faisons **l'étape 1**:
+
+```{r}
+# Transformer en data.table pour manipuler
+paramsdt2 <- data.table(params2)
+
+# On calcule les vraies moyennes
+paramsdt2[, c(2:4) := paramsdt2[, c(2:4)] + b_Intercept]
+
+# Changer en format long
+preds2 <- melt(
+  data = paramsdt2[, c(1:4)],
+  variable.name = "exposure_type",
+  measure = colnames(paramsdt2[, c(1:4)])
+)
+```
+
+Et **l'étape 2**:
+
+```{r}
+# Calculer les médianes
+medians2 <- preds2[, .(median = median(value)), by = exposure_type]
+```
+
+#### Prédictions des effets aléatoires
+
+Pour les effets aléatoires, on veut extraire les prédictions pour chaque espèce. Voici la procédure :
+
+1. Extraire les prédictions par espèce
+2. Calculer la température minimum et maximum de chaque espèce dans les données bruts
+3. Couper les droites estimées pour qu'elles ne couvrent que le minimum et maximum par espèce
+
+Commençons par **l'étape 1**:
+
+```{r, cache=TRUE}
+tab5 <- conditional_effects(
+  hglm, method = "fitted",
+  effects = "Zmedia_temperature_mean:tax_gs",
+  robust = TRUE, re_formula = NULL
+)
+tab5 <- data.table(tab5[[1]])
+```
+
+Ensuite, **l'étape 2**:
+
+```{r}
+ranges <- anim[
+  , .(
+    min = min(Zmedia_temperature_mean, na.rm = TRUE),
+    max = max(Zmedia_temperature_mean, na.rm = TRUE)
+  ),
+  by = tax_gs
+]
+```
+
+Finalement, **l'étape 3**. Cette étape demande de combiner la table `ranges` qu'on a fait à l'étape 2 avec `tab5` qu'on a fait à l'étape 1. Ici, vous verrez qu'on retire toute espèce où il n'y avait qu'une seule valeur de température en faisant `tab5[min != max, ]`.
+
+```{r}
+# Combiner les tables
+tab5 <- merge(tab5, ranges, by = "tax_gs")
+
+# Retirer toute espèce qui n'avait qu'une observation de température
+tab5 <- tab5[min != max, ]
+
+# Couper pour avoir des prédictions qui suivent l'étendue originale
+tab5 <- tab5[Zmedia_temperature_mean <= max, ]
+tab5 <- tab5[Zmedia_temperature_mean >= min, ]
+
+# Compter le nombre d'observations par espèce pour le graphique
+tab5[, count_fitted := length(unique(estimate__)), by = tax_gs]
+```
+
+#### Visualisation
+
+On peut maintenant produire les graphiques. À titre de rappel, on a la même pente pour l'ensemble des types d'exposition, et des ordonnées à l'origine qui diffèrent (c-à-d, les moyennes de concentration diffèrent). Ici, la droite correspond au type d'exposition `F`.
+
+Commençons avec les différences de moyennes.
+
+```{r plot21, fig.height=5, fig.width=6, cache=TRUE}
+ggplot(
+  data = preds2,
+  aes(x = value, fill = exposure_type)
+) +
+  geom_density(alpha = 0.5, colour = "black") +
+  geom_vline(
+    data = medians2,
+    aes(xintercept = median, color = exposure_type),
+    linetype = "dashed"
+  ) +
+  scale_fill_manual(
+    labels = c(
+      "Flux", "NS",
+      "Renouvellement", "Statique"
+    ),
+    values = c("#440154", "#3d4d8a", "#24878e", "#40bd72")
+  ) +
+  scale_colour_manual(
+    labels = c(
+      "Flux", "NS",
+      "Renouvellement", "Statique"
+    ),
+    values = c("#440154", "#3d4d8a", "#24878e", "#40bd72")
+  ) +
+  #scale_x_continuous(breaks = seq(0.25, 1, 0.25), limits = c(0.25, 1)) +
+  xlab("\nlog(concentration effective (mg/L))") +
+  ylab("Densité\n") +
+  labs(fill = "Exposition", colour = "Exposition") +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "top")
+```
+
+Ensuite, les droites pour la température et la longévité pour le type d'exposition `F`.
+
+```{r plot22, fig.height=4, fig.width=8, cache = TRUE}
+hglm_p1 <- ggplot() +
+  geom_point(
+    data = anim,
+    aes(
+      y = result_conc1_mean_log,
+      x = Zmedia_temperature_mean
+    ),
+    alpha = 0.05
+  ) +
+  geom_line(
+    data = spag3,
+    aes(
+      x = Zmedia_temperature_mean,
+      y = estimate__,
+      group = sample__
+    ),
+    linewidth = 1, alpha = 0.05,
+    colour = "#440154"
+  ) +
+  geom_line(
+    data = tab3,
+    aes(
+      x = Zmedia_temperature_mean,
+      y = estimate__
+    ),
+    linewidth = 0.5,
+    colour = "yellow"
+  ) +
+  ylab("log(concentration effective (mg/L))\n") +
+  scale_y_continuous(
+    breaks = seq(-8, 8, 4),
+    limits = c(-10, 8)
+  ) +
+  xlab("\nTempérature moyenne normalisée") +
+  scale_x_continuous(
+    breaks = seq(-4, 4, 2),
+    limits = c(-4, 4)
+  ) +
+  theme_classic(base_size = 14)
+
+hglm_p2 <- ggplot() +
+  geom_point(
+    data = anim[Ztax_lh_amd <= 6],
+    aes(
+      y = result_conc1_mean_log,
+      x = Ztax_lh_amd
+    ),
+    alpha = 0.05
+  ) +
+  geom_line(
+    data = spag4[spag4$Ztax_lh_amd <= 6, ],
+    aes(
+      x = Ztax_lh_amd,
+      y = estimate__,
+      group = sample__
+    ),
+    linewidth = 1, alpha = 0.05,
+    colour = "#440154"
+  ) +
+  geom_line(
+    data = tab4[Ztax_lh_amd <= 6],
+    aes(
+      x = Ztax_lh_amd,
+      y = estimate__
+    ),
+    linewidth = 0.5,
+    colour = "yellow"
+  ) +
+  ylab("log(concentration effective (mg/L))\n") +
+  scale_y_continuous(
+    breaks = seq(-8, 8, 4),
+    limits = c(-10, 8)
+  ) +
+  xlab("\nLongévité moyenne normalisée") +
+  scale_x_continuous(
+    breaks = seq(-2, 6, 2),
+    limits = c(-2, 6.1)
+  ) +
+  theme_classic(base_size = 14)
+
+ggarrange(hglm_p1, hglm_p2)
+```
+
+Finalement, nous avons les droites pour chaque espèce. Ici, montre les droites pour les espèces qui ont au moins 10 observations de température.
+
+```{r plot23, fig.height=5, fig.width=6, cache = TRUE}
+ggplot(
+  tab5[count_fitted >= 10],
+  aes(
+    x = Zmedia_temperature_mean,
+    y = estimate__,
+    color = tax_gs
+  )
+) +
+  geom_line(linewidth = 1, alpha = 0.5) +
+  scale_color_viridis(discrete = TRUE, option = "D") +
+  ylab("log(concentration effective (mg/L))") +
+  xlab("Température moyenne normalisée") +
+  scale_x_continuous(breaks = seq(-4, 4, 2), limits = c(-4, 4)) +
+  scale_y_continuous(breaks = seq(-4, 4, 2), limits = c(-4, 4)) +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "none")
+```
+
+## Interprétations
+
+Nos résultats montrent que:
+
+Les résultats sont très différents du GLM
+
+donner des pistes de réflexion...
+
+parce qu'on pool les valeurs entre 0 et 1.
+ici on prends les vraies moyennes de la concentration
+
 # Informations complémentaires
 
 ## Inspections additionnelles
 
 While the model verifications that we just did are probably among the most important ones, they cover only a small portion of the checks that you should perform to ensure that your model has been correctly specified. To go further, here is a list of useful links for additional checks: 
 
-- [MCMC diagnostics](https://mc-stan.org/bayesplot/articles/visual-mcmc-diagnostics.html) with the `bayesplot` package
-- [Additional posterior predictive checks](https://mc-stan.org/bayesplot/articles/graphical-ppcs.html) with the `bayesplot` package
-- [Additional residuals inspections](http://mjskay.github.io/tidybayes/articles/tidybayes-residuals.html) with the `tidybayes` package. For instance, you could inspect the relationship between the residuals and your fixed effects to see if the model failed at describing some features. This will be important for biological interpretations.
-- [Leave-one-out cross-validation](https://link.springer.com/article/10.1007/s11222-016-9696-4) using Pareto-smoothed importance sampling for predictive performance and model comparisons. For important references consult the [loo FAQ](https://avehtari.github.io/modelselection/CV-FAQ.html), [the roaches model example](https://avehtari.github.io/modelselection/roaches.html), and the [loo package vignette](http://mc-stan.org/loo/articles/index.html)
+Les vérifications de modèle que nous avons réalisées durant l'atelier sont parmi les plus importantes, toutefois, elles ne couvrent qu'une petite partie des vérifications que vous devriez effectuer pour vous assurer que votre modèle a été correctement spécifié. Pour aller plus loin, voici une liste de liens utiles pour des vérifications supplémentaires :
 
-Moreover, note that MCMC estimation can come with different convergence problems. Those problems can arise from different processes, but `brms` (and other packages using MCMC) should print warnings outlining the potential problems after the model has finished running. Here is a [useful link](https://mc-stan.org/misc/warnings.html) describing each of those problems and their solutions.
+- [Diagnostiques des alertes de convergence](https://mc-stan.org/misc/warnings.html)
+- [Diagnostiques MCMC](https://mc-stan.org/bayesplot/articles/visual-mcmc-diagnostics.html) avec la librairie `bayesplot`
+- [Vérifications prédictives postérieures additionnelles](https://mc-stan.org/bayesplot/articles/graphical-ppcs.html) avec la librairie `bayesplot`
+- [Inspections des résidus additionnelles](http://mjskay.github.io/tidybayes/articles/tidybayes-residuals.html) avec la librairie `tidybayes`. Par exemple, vous pourriez évaluer la relation entre vos résidus et vous effets fixes. Ceci sera important pour les interprétations biologiques.
+- [Validation croisée leave-one-out](https://link.springer.com/article/10.1007/s11222-016-9696-4) pour la performance prédictive et la comparaison de modèles. Consultez [le FAQ de la librairie loo](https://avehtari.github.io/modelselection/CV-FAQ.html), [l'exemple des coquerelles](https://avehtari.github.io/modelselection/roaches.html), et [la vignette de la librairie loo](http://mc-stan.org/loo/articles/index.html)
+
+## Un atelier sur les MHGLM
+
+Voici un autre atelier que j'ai développé, semblable à celui-ci, où on construit un modèle hiérarchique multivarié. Tous les documents sont trouvables dans [ce dépôt GitHub](https://github.com/quantitative-ecologist/ComputationalEcology-SummerSchool)
 
 # References
 
