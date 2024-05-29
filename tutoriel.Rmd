@@ -32,6 +32,7 @@ library(data.table)
 library(brms)
 library(bayesplot)
 library(ggplot2)
+library(ggExtra)
 library(ggpubr)
 library(viridis)
 library(knitr)
@@ -54,7 +55,7 @@ Les objectifs d'apprentissage sont:
 
 ## librairies
 
-Voici la liste des librairies que nous allons utiliser pour l'atelier. Assurez-vous de les avoir téléchargées.
+Voici la liste des librairies que nous allons utiliser pour l'atelier. Assurez-vous qu'elles soient téléchargées.
 
 ```{r, eval=FALSE}
 # Pour manipuler les données
@@ -65,6 +66,7 @@ library(brms)
 
 # Pour diagnostiquer les modèles bayésiens
 library(bayesplot)
+library(performance)
 
 # Pour nos graphiques
 library(ggplot2)
@@ -88,9 +90,9 @@ Le jeu de données ADORE contient une myriade d'informations sur des expérience
 
 ## Modèles
 
-Les modèles estimés durant l'atelier peuvent prendre un certain temps. Après avoir téléchargé les dossiers de l'atelier (dans ce dépôt GitHub)[https://github.com/quantitative-ecologist/Atelier-CSL-EcotoQ], vous pouvez effectuer ces commandes pour les importer dans votre session:
+Les modèles que nous construirons durant l'atelier peuvent prendre un certain à estimer les paramètres. Après avoir téléchargé les dossiers de l'atelier (dans ce dépôt GitHub)[https://github.com/quantitative-ecologist/Atelier-CSL-EcotoQ], vous pouvez effectuer ces commandes pour les importer dans votre session:
 
-```{r , include=FALSE, eval=FALSE}
+```{r , eval=FALSE}
 glm1 <- readRDS(
   file = file.path(getwd(), "outputs", "glm1.rds")
 )
@@ -136,13 +138,13 @@ https://micl.shinyapps.io/prior2post/
 
 ## Méthode d'estimation
 
-Il existe de nombreuses façons d'approximer la distribution à posteriori. Dans ce tutoriel, nous utiliserons la méthode de Monte Carlo Hamiltonienne (HMC) et l'échantillonneur No-U-Turn (NUTS) pour estimer la distribution à posteriori. Ce sont des algorithmes spécifiques dans la grande famille d'estimation de Monte Carlo par chaîne de Markov (MCMC). 
+Il existe de nombreuses façons d'approximer la distribution à posteriori. Dans ce tutoriel, nous utiliserons la méthode de Monte Carlo Hamiltonienne (HMC) et l'échantillonneur No-U-Turn (NUTS) pour estimer la distribution à posteriori. Cet algorithme spécifique fait partie de la plus grande famille d'estimation de Monte Carlo par chaîne de Markov (MCMC). 
 
-Pour ce faire nous effectuerons tous nos modèles avec la librairie `brms`, une interface R pour le [langage probabiliste STAN](https://mc-stan.org/). La librairie `brms` utilise l'algorithme NUTS pour estimer les paramètres. Je vous recommande vivement de lire [les vignettes de la librairie](https://paul-buerkner.github.io/brms/articles/index.html) pour mieux comprendre les capacités et le fonctionnement de `brms`.
+Dans l'atelier, nous estimerons les paramètres de nos modèles par HMC avec la librairie `brms`, une interface R pour le [langage probabiliste STAN](https://mc-stan.org/). La librairie `brms` utilise l'algorithme NUTS pour estimer les paramètres. Je vous recommande vivement de lire [les vignettes de la librairie](https://paul-buerkner.github.io/brms/articles/index.html) pour mieux comprendre les capacités et le fonctionnement de `brms`.
 
 ## Les avantages
 
-L'inférence Bayésienne comporte certains avantages par rapport à l'approche statistique fréquentiste.
+L'inférence Bayésienne comporte certains avantages par rapport à l'approche statistique fréquentiste:  
 
 - Elle met l'accent sur la distribution et l'incertitude au lieu d'estimés uniques
 - Elle permet une interprétation plus naturelle (probabiliste)
@@ -165,7 +167,7 @@ Voici les spécifications:
 
 Importons les données à partir du dépôt GitHub de l'atelier:
 
-```{r donnees}
+```{r donnees, cache=TRUE}
 github <- "https://raw.githubusercontent.com/quantitative-ecologist"
 depot <- "Atelier-CSL-EcotoQ"
 dossier <- "main/data"
@@ -185,9 +187,9 @@ Dans le cadre de cet atelier, nous utiliserons un échantillon de ces variables.
 ### Variables sur les résultats expérimentaux (Y)
 
 - `result_effect`: le groupe d'effet de l'expérience, soit, mortalité (`MOR`) exclusivement pour les animaux
-- `result_conc_mean`: la concentration effective moyenne en mg/L
-- `result_conc_mean_log`: le log de la concentration effective moyenne
-- `result_conc1_mean_binary`: si la dose est moins toxique (`0`) ou plus toxique (`1`)
+- `result_conc_mean`: la concentration efficace moyenne en mg/L
+- `result_conc_mean_log`: le log de la concentration efficace moyenne
+- `result_conc1_mean_binary`: si la concentration est moins toxique (`0`) ou plus toxique (`1`)
 
 ### Variables sur les espèces (X)
 
@@ -204,9 +206,9 @@ Pour l'atelier, nous allons nous intéresser à modéliser les variables liées 
 
 # 4. Exploration des données
 
-## Distribution de la concentration effective
+## Distribution de la concentration efficace
 
-Commençons par évaluer la distribution de la variable réponse, qui est le log de la concentration effective moyenne. Nous allons faire nos graphiques avec la librairie `ggplot2`.
+Commençons par évaluer la distribution de la variable réponse, qui est le log de la concentration efficace moyenne. Nous allons faire nos graphiques avec la librairie `ggplot2`.
 
 ```{r plot1, fig.height=5, fig.width=6, cache=TRUE}
 ggplot(data = anim) +
@@ -220,9 +222,9 @@ ggplot(data = anim) +
   theme(panel.grid = element_blank())
 ```
 
-## Concentration effective selon l'espèce
+## Concentration efficace selon l'espèce
 
-Vérifions si les concentrations effectives varient selon l'espèce.
+Vérifions si les concentrations efficaces varient selon l'espèce.
 
 ```{r plot2, fig.height=7, fig.width=6, cache=TRUE}
 ggplot(data = anim) +
@@ -250,9 +252,9 @@ ggplot(data = anim) +
   )
 ```
 
-## Concentration effective selon l'exposition
+## Concentration efficace selon l'exposition
 
-Finalement, on peut aussi se douter que la concentration effective pourrait changer selon le type d'exposition.
+Finalement, on peut aussi se douter que la concentration efficace pourrait changer selon le type d'exposition.
 
 ```{r plot4, fig.height=7, fig.width=6, cache=TRUE}
 ggplot(data = anim) +
@@ -280,7 +282,7 @@ ggplot(data = anim) +
 
 ## Sommaire de l'exploration de données
 
-Les vérifications nous indiquent qu'il semble y avoir une structure hiérarchique dans nos données. En termes simples, cela signifie qu'il y a de la variation dans les concentrations effectives entre les différents groupes que nous avons vu, soit, les espèces ainsi que le type d'exposition.
+Les vérifications nous indiquent qu'il semble y avoir une structure hiérarchique dans nos données. En termes simples, cela signifie qu'il y a de la variation dans les concentrations efficaces entre les différents groupes que nous avons vu, notamment, entre les espèces.
 
 Les modèles hiérarchiques nous permettront de modéliser cette variation afin d'en tenir compte.
 
@@ -298,7 +300,7 @@ $$Y = X\beta+\epsilon$$
 
 où: 
 
-- $Y$ est le vecteur des valeurs observées (c.-à.-d. la variable réponse)
+- $Y$ est le vecteur des valeurs observées (c.-à-d. la variable réponse)
 - $X$ est la matrice de variables explicatives (incluant l'ordonnée à l'origine)
 - $\beta$ est le vecteur de coefficients
 - $\epsilon$ est le vecteur des résidus
@@ -378,7 +380,7 @@ Pour interpréter les résultats d'un modèle linéaire, il est essentiel que ce
 
 Une des limites majeures des modèles linéaires classiques est qu'ils ne peuvent s'ajuster à des variables réponse pour lesquelles les résidus suivent une distribution non-Gaussienne.
 
-Cette situation est particulièrement commune lorsqu'on analyse des données biologiques, qui ont tendance à suivre d'autres types de distribution telle que de type Poisson ou binomiale.
+Cette situation est particulièrement commune lorsqu'on analyse des données biologiques, qui ont tendance à suivre d'autres types de distribution telles que Poisson ou binomiale.
 
 Dans la section suivante, nous verrons comment les modèles linéaires généralisés nous permettent de palier à ce problème en modélisant spécifiquement la nature des résidus d'une variable $Y$.
 
@@ -557,8 +559,8 @@ Nous avons vu trois exemples de distributions souvent rencontrées avec des donn
 
 Dans un GLM, afin que celui-ci puisse estimer la relation entre $Y$ et $X$, on doit donc:
 
-1. Spécifier la distribution des résidus
-2. Spécifier la fonction de lien pour les valeurs prédites
+1. **Spécifier la distribution des résidus**
+2. **Spécifier la fonction de lien** pour les valeurs prédites
 
 Cette deuxième étape consiste à **linéariser la relation** entre $Y$ et $X$. Il s'agit donc de transformer les valeurs prédites $\hat{Y}$ pour avoir une relation linéaire.
 
@@ -622,12 +624,12 @@ Nous allons construire un GLM simple avec une variable réponse et trois variabl
 
 Nos variable sont:
 
-- $Y$: la concentration effective est 1 (plus toxique) ou 0 (moins toxique)
+- $Y$: la concentration efficace est 1 (plus toxique) ou 0 (moins toxique)
 - $X_1$: le type d'exposition
 - $X_2$: la température moyenne du medium degrés Celsius
 - $X_3$: la longévité de l'espèce en jours
 
-Si on modélisait la relation entre la toxicité de la concentration effective et la température du medium avec une régression linéaire classique, on obtiendrait ceci:
+Si on modélisait la relation entre la toxicité de la concentration efficace et la température du medium avec une régression linéaire classique, on obtiendrait ceci:
 
 ```{r plot9, fig.height=4, fig.width=9, echo=FALSE, cache=TRUE}
 fit2 <- lm(
@@ -682,9 +684,9 @@ ggarrange(pex1, pex2)
 
 Comme vous pouvez voir dans le panneau à gauche, le modèle ne décrit pas bien la relation entre le niveau de toxicité et la température. De plus, il aurait pu y avoir des cas où la droite dépasse le seuil possible de nos valeurs (ici 0 ou 1).
 
-On peut voir à gauche que les résidus de notre modèle ne respectent pas la condition d'homoscédasticité.
+On peut voir à gauche que les résidus de notre modèle ne respectent pas la condition de normalité et d'homoscédasticité.
 
-Pour ces raisons, on doit donc établir une limite inférieure et supérieure à nos données en **spécifiant une distribution de Bernoulli** pour modéliser la toxicité de la concentration effective.
+Pour ces raisons, on doit donc établir une limite inférieure et supérieure à nos données en **spécifiant une distribution de Bernoulli** pour modéliser la toxicité de la concentration efficace.
 
 ## Préparation des données
 
@@ -721,7 +723,7 @@ anim[
 
 ## Construction du modèle
 
-Dans cet exemple, on s'intéresse à estimer comment la toxicité de la concentration effective varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience.
+Dans cet exemple, on s'intéresse à estimer comment la toxicité de la concentration efficace varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience.
 
 Voici l'équation de notre modèle:
 
@@ -743,7 +745,7 @@ $$logit(p) = log(\frac{p}{1-p})$$
 
 où:
 
-$p$ est la probabilité que la concentration effective soit toxique (1) pour chaque observation. 
+$p$ est la probabilité que la concentration efficace soit toxique (1) pour chaque observation. 
 
 On estime $p$ en utilisant l'inverse de la fonction logit:
 
@@ -776,7 +778,7 @@ Les informations à priori à spécifier sont:
 - sur les différences de moyenne par rapport à `F`
 - sur les pentes pour la température et la longévité
 
-Pour vous aider à comprendre, imaginez que vous savez avec la littérature que la dose effective devrait être plus toxique avec une augmentation de la température. Ainsi, pour la pente de ce paramètre, vous pourriez spécifier une distribution Gaussienne avec une moyenne de 1 et un écart-type de 0.5. Vous diriez donc à votre modèle que vous assumez que cette valeur devrait être positive, se situant autour de 1, avec peu de variation autour de cette valeur.
+Pour vous aider à comprendre, imaginez que vous savez avec la littérature que la concentration efficace devrait être plus toxique avec une augmentation de la température. Ainsi, pour la pente de ce paramètre, vous pourriez spécifier une distribution Gaussienne avec une moyenne de 1 et un écart-type de 0.5. Vous diriez donc à votre modèle que vous assumez que cette valeur devrait être positive, se situant autour de 1, avec peu de variation autour de cette valeur.
 
 ```{r}
 priors1 <- c(
@@ -938,6 +940,8 @@ params1 <- as_draws_df(
 
 ### Convergence des chaînes
 
+#### Inspection qualitative
+
 La première chose que nous allons faire est de vérifier si les chaînes de Markov ont bien convergé pour chacun de nos paramètres d'intérêt. Nous allons faire ceci en inspectant des "trace plots".
 
 Nous pouvons déduire que les chaînes ont convergé si les "trace plots" sont homogènes.
@@ -956,9 +960,11 @@ bayesplot::mcmc_trace(
 
 Les chaînes de notre modèle semblent avoir très bien convergé.
 
-Une autre étape d'inspection de convergence des chaînes de Markov est d'évaluer les **$\hat{R}$** et les **tailles d'échantillon effectives** pour chaque paramètre d'intérêt.
+#### Inspection quantitative
 
-- Dans @Burkner2017, on peut lire que la taille d'échantillon effective est: "le nombre d'échantillons indépendants de la distribution postérieure qui serait attendu pour produire la même erreur standard de la moyenne postérieure que celle obtenue à partir des échantillons dépendants retournés par l'algorithme MCMC". Dans `brms`, le résumé du modèle fournit une estimation des tailles d'échantillon effectives de la partie centrale et des queues de la distribution postérieure. Le `Bulk_ESS` rapporte l'efficacité de l'échantillonnage de la partie centrale de la distribution postérieure (c'est-à-dire la médiane ou la moyenne), tandis que le `Tail_ESS` diagnostique l'efficacité de l'échantillonnage des queues de la distribution postérieure (c'est-à-dire les quantiles 5% et 95%). Nous utilisons un seuil de <100 comme règle de décision pour savoir si les chaînes ont convergé pour les paramètres [@Vehtari.etal2021a].
+Une autre étape d'inspection de convergence des chaînes de Markov est d'évaluer les **$\hat{R}$** et les **tailles d'échantillon efficace** pour chaque paramètre d'intérêt.
+
+- Dans @Burkner2017, on peut lire que la taille d'échantillon efficace est: "le nombre d'échantillons indépendants de la distribution postérieure qui serait attendu pour produire la même erreur standard de la moyenne postérieure que celle obtenue à partir des échantillons dépendants retournés par l'algorithme MCMC". Dans `brms`, le résumé du modèle fournit une estimation des tailles d'échantillon efficaces de la partie centrale et des queues de la distribution postérieure. Le `Bulk_ESS` rapporte l'efficacité de l'échantillonnage de la partie centrale de la distribution postérieure (c'est-à-dire la médiane ou la moyenne), tandis que le `Tail_ESS` diagnostique l'efficacité de l'échantillonnage des queues de la distribution postérieure (c'est-à-dire les quantiles 5% et 95%). Nous utilisons un seuil de <100 comme règle de décision pour savoir si les chaînes ont convergé pour les paramètres [@Vehtari.etal2021a].
 
 - En revanche, le $\hat{R}$ est un outil de diagnostic quantitatif courant pour savoir si les chaînes ont convergé [@gelmanBayesianDataAnalysis2013;@Burkner2017]. Il compare la variance à l'intérieur d'une chaîne à la variance entre les chaînes. Différentes versions et seuils ont été proposés pour cette mesure [@gelmanInferenceIterativeSimulation1992;@gelmanBayesianDataAnalysis2013;@Vehtari.etal2021a], mais nous utiliserons la plus parcimonieuse suggérée par @Vehtari.etal2021a avec un seuil fixé à <1.01.
 
@@ -1019,8 +1025,8 @@ knitr::kable(glm1_t[, c(1, 2, 4, 5)])
 On peut voir que:
 
 - Il y a des différences de toxicité selon le type d'exposition
-- La probabilité que la CL50 soit plus toxique augmente avec la longévité
-- La probabilité que la CL50 soit plus toxique diminue avec la température moyenne
+- La probabilité que la CE50 soit plus toxique augmente avec la longévité
+- La probabilité que la CE50 soit plus toxique diminue avec la température moyenne
 
 Nous allons visualiser ces résultats avec des figures.
 
@@ -1067,7 +1073,7 @@ tab2 <- data.table(tab2[[1]])
 
 **Type d'exposition**
 
-Ici, on va utiliser les distributions postérieures des moyennes prédites de chaque type d'exposition. Nous avons déjà extrait ceci dans une étape ultérieure et assigné à l'objet `params`. 
+Ici, on va utiliser les distributions postérieures des moyennes prédites de chaque type d'exposition. Nous avons déjà extrait ceci dans une étape ultérieure et assigné à l'objet `params1`. 
 
 Cela nous permettra de comparer les moyennes entre chaque type d'exposition avec une approche Bayésienne.
 
@@ -1246,21 +1252,21 @@ ggarrange(glm_p1, glm_p2)
 
 Nos résultats montrent que:
 
-1. Il y a 40% de chances que la concentration effective soit plus toxique lorsque les conditions expérimentales utilisent un flux d'eau continu. Nous avons de bonnes preuves que ce pourcentage ne diffère pas entre un traitement avec renouvellement. Nous avons également de fortes preuves que des conditions statiques augmentent les changes que la concentration effective soit toxique par rapport à un flux continu. Les expériences où le traitement n'est pas spécifié ont les plus hautes chances que la concentration effective soit toxique. 
+1. Il y a 40% de chances que la concentration efficace soit plus toxique lorsque les conditions expérimentales utilisent un flux d'eau continu. Nous avons de bonnes preuves que ce pourcentage ne diffère pas entre un traitement avec renouvellement. Nous avons également de fortes preuves que des conditions statiques augmentent les changes que la concentration efficace soit toxique par rapport à un flux continu. Les expériences où le traitement n'est pas spécifié ont les plus hautes chances que la concentration efficace soit toxique. 
 
-2. Nous avons de fortes preuves que la probabilité que la concentration effective soit toxique diminue avec la température du médium. Les chances que la concentration soit toxique diminuent d'environ 25% des plus basses aux plus hautes températures.
+2. Nous avons de fortes preuves que la probabilité que la concentration efficace soit toxique diminue avec la température du médium. Les chances que la concentration soit toxique diminuent d'environ 25% des plus basses aux plus hautes températures.
 
-3. Nous avons de fortes preuves que la probabilité que la concentration effective soit toxique augmente avec la longévité moyenne de l'espèce. À partir des espèces à courte durée de vie, on observe une augmentation d'environ 10% à 15% dans la probabilité pour les espèces à plus haute longévité.
+3. Nous avons de fortes preuves que la probabilité que la concentration efficace soit toxique augmente avec la longévité moyenne de l'espèce. À partir des espèces à courte durée de vie, on observe une augmentation d'environ 10% à 15% dans la probabilité pour les espèces à plus haute longévité.
 
 # 8. Théorie: les HGLM
 
 ## Complexité des données biologiques
 
-En explorant nos données, nous avons vu qu'il semble y avoir une structure hiérarchique, où la concentration effective varie entre les espèces.
+En explorant nos données, nous avons vu qu'il semble y avoir une structure hiérarchique, où la concentration efficace varie entre les espèces.
 
 Ceci est un exemple concret démontrant comment les données biologique sont souvent complexes, et structurées à différentes échelles.
 
-Reprenons l'exemple de la concentration effective en fonction de la température du médium. Cette fois, on ajoute les espèces dans la figure. Ici, chaque couleur correspond à un taxon différent.
+Reprenons l'exemple de la CE50 en fonction de la température du médium. Cette fois, on utilise le log de la concentration en mg/L pour mieux voir la distribution des points, et on ajoute les espèces dans la figure. Ici, chaque couleur correspond à un taxon différent.
 
 ```{r plot14, fig.height=5, fig.width=6, echo =FALSE}
 ggplot(
@@ -1280,14 +1286,14 @@ ggplot(
   theme(legend.position = "none")
 ```
 
-À partir de ce graphique, on peut se poser deux questions:  
+À partir de ce graphique, on peut se poser **deux questions**:  
 
-1. Est-ce que les taxons ont la même concentration effective moyenne?
-2. Est-ce que la relation entre la concentration effective et la température change selon les taxons?
+1. Est-ce que les taxons diffèrent dans leur concentration efficace moyenne?
+2. Est-ce que la relation entre la concentration efficace et la température change selon les taxons?
 
-Pour la première question, notre réflexe pourrait être de faire le même GLM que nous avons fait à la section précédente, et d'ajouter le taxon comme variable catégorique.
+Pour la **première question**, notre réflexe pourrait être de faire le même GLM que nous avons fait à la section précédente, et d'ajouter le taxon comme variable catégorique.
 
-Pour la seconde question, on pourrait spécifier un modèle de type ANCOVA, en modélisant une interaction entre la température et le taxon.
+Pour la **seconde question**, on pourrait spécifier un modèle de type ANCOVA, en modélisant une interaction entre la température et le taxon.
 
 Pour répondre aux deux questions, on aurait ce modèle:
 
@@ -1351,9 +1357,9 @@ Nous verrons comment ces principes fonctionnent dans la prochaine section avec l
 
 Reprenons l'exemple du modèle que nous avons construit précédemment.
 
-On s'intéresse toujours à estimer comment la concentration effective ($Y$) varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience ($X$). On ajoute toutefois **les espèces comme effet aléatoire** ($U$).
+On s'intéresse toujours à estimer comment la concentration efficace ($Y$) varie selon le type d'exposition, la longévité moyenne de l'espèce, et la température du médium durant l'expérience ($X$). On ajoute toutefois **les espèces comme effet aléatoire** ($U$).
 
-Ici, on veut donc savoir si les espèces varient dans leur concentration effective moyenne, et si la relation entre celle-ci et la température change d'une espèce à l'autre.
+Ici, on veut donc savoir si les espèces varient dans leur concentration efficace moyenne, et si la relation entre celle-ci et la température change d'une espèce à l'autre.
 
 Voici l'équation de notre modèle:
 
@@ -1366,7 +1372,7 @@ où les paramètres ajoutés sont:
 - $U_2$ est la matrice de conception pour les pentes aléatoires
 - $\delta_2$ est le vecteur des pentes aléatoires des espèces
 
-**Les effets fixes**, représentés par les coefficients $\beta$ et $\gamma$, modélisent les effets moyens des variables explicatives sur la variable réponse. Ils sont constants pour toutes les unités observées (c.-à.-d., les espèces par exemple). Ce sont les effets que nous avons estimés précédemment dans notre GLM. Celà ne change donc pas. Les effets fixes peuvent être des variables catégoriques **ou** des variables continues.
+**Les effets fixes**, représentés par les coefficients $\beta$ et $\gamma$, modélisent les effets moyens des variables explicatives sur la variable réponse. Ils sont constants pour toutes les unités observées (c.-à-d., les espèces par exemple). Ce sont les effets que nous avons estimés précédemment dans notre GLM. Celà ne change donc pas. Les effets fixes peuvent être des variables catégoriques **ou** des variables continues.
 
 **Les effets aléatoires**, quant à eux, représentés par les coefficients $\delta_1$ et $\delta_2$, modélisent la variation entre les différents niveaux d'une variable catégorique. Dans le contexte de notre exemple, on intègre les différences entre les espèces en termes de sensibilité à la concentration en ajoutant un effet aléatoire. Les effets aléatoires sont **strictement** des variables catégoriques
 
@@ -1538,7 +1544,7 @@ Nous verrons celà dans la prochaine section.
 
 Nous sommes maintenant prêt.e.s à appliquer notre modèle dans R.
 
-Pour mieux visualiser les relations le long de la distribution des points, nous ferons cette fois-ci un HLM en utilisant le log de la concentration effective moyenne. Notre modèle devra donc respecter les suppositions de base des modèles linéaires.
+Pour mieux visualiser les relations le long de la distribution des points, nous ferons cette fois-ci un HLM en utilisant le log de la concentration efficace moyenne. Notre modèle devra donc respecter les suppositions de base des modèles linéaires.
 
 Rappelons le modèle:
 
@@ -1556,7 +1562,7 @@ $$
 \Omega = \begin{bmatrix} \text{var}(\delta_1) & \text{cov}(\delta_1, \delta_2) \\ \text{cov}(\delta_2, \delta_1) & \text{var}(\delta_2) \end{bmatrix}
 $$
 
-Nous verrons plus tard comment cette matrice de covariance nous permet de savoir si la concentration effective moyenne des espèces est associée à leur réponse à la température du médium.
+Nous verrons plus tard comment cette matrice de covariance nous permet de savoir si la concentration efficace moyenne des espèces est associée à leur réponse à la température du médium.
 
 ## Construction du modèle
 
@@ -1833,9 +1839,35 @@ Il semble y avoir une importante variation dans les moyennes entre les espèces 
 
 La corrélation positive entre les ordonnées à l'origine et les pentes indique que plus une espèce à une sensibilité élevée, plus elle est susceptible de répondre fortement à la température.
 
+### Décomposition de la variance
+
+Dans le contexte des modèles hiérarchiques, il est pertinent de décomposer la variance pour évaluer dans quelle mesure les effets fixes et les effets aléatoires contribuent à expliquer de la variation dans $Y$.
+
+Je vous conseille de lire l'article de [Nakagawa et Schielzeth (2012)]((https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/j.2041-210x.2012.00261.x)) pour une revue de la théorie.
+
+Voici les deux mesures que nous allons vérifier:
+
+$$
+R_{marginal}^{2} = \frac{V_{fixe}}{V_{résiduelle} + V_{fixe} + V_{aléatoire}}
+$$
+
+$$
+R_{conditionnel}^{2} = \frac{V_{fixe} + V_{aléatoire}}{V_{résiduelle} + V_{fixe} + V_{aléatoire}}
+$$
+
+```{r r2, cache=TRUE}
+performance::r2_nakagawa(hglm)
+```
+
+- La température, la longévité, et le type d'exposition ensemble n'expliquent que 0.4% de la variation dans la CE50, ce qui est très faible.
+
+- Le $R_{conditionnel}^{2}$ monte à 30.8%. Si on soustrait le $R_{conditionnel}^{2}$ et le $R_{marginal}^{2}$, celà indique que 30.8% de la variation dans la CE50 est dûe à des différences entre les espèces, ce qui est très grand!
+
 ### Figures
 
 #### Prédictions des effets fixes
+
+On répète les mêmes étapes que le GLM pour calculer les prédictions de la CE50 en fonction de la température et de la longévité moyenne.
 
 **Température**
 
@@ -1905,6 +1937,8 @@ medians2 <- preds2[, .(median = median(value)), by = exposure_type]
 
 #### Prédictions des effets aléatoires
 
+**Calcul des prédictions par espèce**
+
 Pour les effets aléatoires, on veut extraire les prédictions pour chaque espèce. Voici la procédure :
 
 1. Extraire les prédictions par espèce
@@ -1951,9 +1985,65 @@ tab5 <- tab5[Zmedia_temperature_mean >= min, ]
 tab5[, count_fitted := length(unique(estimate__)), by = tax_gs]
 ```
 
+**Extraction des paramètres par espèce**
+
+Ici, nous allons extraire les pentes et les ordonnées à l'origine individuellement pour chaque espèce afin de visualiser la corrélation entre les deux paramètres.
+
+On commence par extraire les distributions postérieures dans une `data.table`.
+
+```{r}
+# Transformer en data.table pour manipuler
+paramsdt3 <- data.table(params2)
+
+# Changer en format long
+ranefs <- melt(
+  data = paramsdt3,
+  variable.name = "parameter",
+  measure = patterns("^r_tax_gs")
+)[, .(parameter, value)]
+```
+
+On réassigne ensuite le nom de l'espèce et le nom des paramètres dans des colones individuelles.
+
+```{r}
+# Réassigner les noms d'espèces
+tax_gs <- gsub("^r_tax_gs\\[([^,]+).*", "\\1", ranefs$parameter)
+ranefs[
+  , tax_gs := tax_gs
+]
+
+# Assigner les paramètres à une colone
+ranefs[parameter %like% "Intercept", parameter_type := "intercept"]
+ranefs[is.na(parameter_type), parameter_type := "slope"]
+```
+
+Finalement, on calcule les médianes par espèce pour la pente et l'ordonnée à l'origine.
+
+```{r}
+# Calculer médianes
+ranefs[
+  , mediane := median(value),
+  by = .(tax_gs, parameter_type)
+]
+
+# Table unique pour tous les paramètres
+ranefs1 <- unique(ranefs[, .(parameter_type, mediane, tax_gs)])
+
+# Ramener en format large
+ranefs2 <- dcast(
+  data = ranefs1,
+  value.var = "mediane",
+  formula = tax_gs ~ parameter_type
+)
+```
+
 #### Visualisation
 
-On peut maintenant produire les graphiques. À titre de rappel, on a la même pente pour l'ensemble des types d'exposition, et des ordonnées à l'origine qui diffèrent (c-à-d, les moyennes de concentration diffèrent). Ici, la droite correspond au type d'exposition `F`.
+On peut maintenant produire les graphiques. 
+
+**Effets fixes**
+
+À titre de rappel, on a la même pente pour l'ensemble des types d'exposition, et des ordonnées à l'origine qui diffèrent (c-à-d, les moyennes de concentration diffèrent). Ici, la droite correspond au type d'exposition `F`.
 
 Commençons avec les différences de moyennes.
 
@@ -1983,7 +2073,7 @@ ggplot(
     values = c("#440154", "#3d4d8a", "#24878e", "#40bd72")
   ) +
   #scale_x_continuous(breaks = seq(0.25, 1, 0.25), limits = c(0.25, 1)) +
-  xlab("\nlog(concentration effective (mg/L))") +
+  xlab("\nlog(concentration efficace (mg/L))") +
   ylab("Densité\n") +
   labs(fill = "Exposition", colour = "Exposition") +
   theme_classic(base_size = 14) +
@@ -2021,7 +2111,7 @@ hglm_p1 <- ggplot() +
     linewidth = 0.5,
     colour = "yellow"
   ) +
-  ylab("log(concentration effective (mg/L))\n") +
+  ylab("log(concentration efficace (mg/L))\n") +
   scale_y_continuous(
     breaks = seq(-8, 8, 4),
     limits = c(-10, 8)
@@ -2061,7 +2151,7 @@ hglm_p2 <- ggplot() +
     linewidth = 0.5,
     colour = "yellow"
   ) +
-  ylab("log(concentration effective (mg/L))\n") +
+  ylab("log(concentration efficace (mg/L))\n") +
   scale_y_continuous(
     breaks = seq(-8, 8, 4),
     limits = c(-10, 8)
@@ -2076,7 +2166,9 @@ hglm_p2 <- ggplot() +
 ggarrange(hglm_p1, hglm_p2)
 ```
 
-Finalement, nous avons les droites pour chaque espèce. Ici, montre les droites pour les espèces qui ont au moins 10 observations de température.
+**Effets aléatoires**
+
+Finalement, nous avons les droites pour chaque espèce. Ici, on ne montre que les droites pour les espèces qui ont au moins 10 observations de température.
 
 ```{r plot23, fig.height=5, fig.width=6, cache = TRUE}
 ggplot(
@@ -2089,7 +2181,7 @@ ggplot(
 ) +
   geom_line(linewidth = 1, alpha = 0.5) +
   scale_color_viridis(discrete = TRUE, option = "D") +
-  ylab("log(concentration effective (mg/L))") +
+  ylab("log(concentration efficace (mg/L))") +
   xlab("Température moyenne normalisée") +
   scale_x_continuous(breaks = seq(-4, 4, 2), limits = c(-4, 4)) +
   scale_y_continuous(breaks = seq(-4, 4, 2), limits = c(-4, 4)) +
@@ -2097,16 +2189,60 @@ ggplot(
   theme(legend.position = "none")
 ```
 
+```{r plot24, fig.height=6, fig.width=7, cache = TRUE}
+p <- ggplot(
+  ranefs2,
+  aes(
+    x = intercept,
+    y = slope
+  )
+) +
+  geom_point(aes(colour = tax_gs)) +
+  geom_smooth(method = lm, se = FALSE, colour = "black") +
+  scale_color_viridis(discrete = TRUE, option = "D") +
+  ylab("Pente") +
+  xlab("Ordonnée à l'origine") +
+  scale_x_continuous(breaks = seq(-2, 2, 1), limits = c(-2.3, 2)) +
+  scale_y_continuous(breaks = seq(-2, 2, 1), limits = c(-2.3, 2)) +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "none")
+
+p <- ggExtra::ggMarginal(
+  p,
+  type = "histogram",
+  margins = "both"
+)
+
+p
+```
+
 ## Interprétations
 
-Nos résultats montrent que:
+### Effets fixes
 
-Les résultats sont très différents du GLM
+Les résultats semblent avoir **beaucoup changé**:
 
-donner des pistes de réflexion...
+- on ne détecte plus de différences entre les types d'exposition
+- la relation entre la concentration et la température est presque nulle
+- la relation entre la concentration et la température est presque nulle
 
-parce qu'on pool les valeurs entre 0 et 1.
-ici on prends les vraies moyennes de la concentration
+Mais n'ayez crainte, il y a **quelques explications potentielles**.
+
+**Premièrement**, le fait de transformer une variable continue en variable binaire change sa nature. Ici, les auteurs ont considéré des valeurs de CE50 (mg/L)dans l'intervalle $[10^0, -\infty]$ comme toxique (1), et $[10^0, \infty]$ comme moins toxique (0). Ceci créé un débalancement dans les classes. On voit dans l'article de Schür (2023) qu'il y a davantage de classes non toxiques que toxiques.
+
+**Deuxièmement**, il y a une forte imbalance entre les types d'exposition, et de transformer la CE50 en variable binaire pourrait aussi avoir joué sur les résultats en ajoutant encore plus d'imbalance à l'intérieur types d'exposition.
+
+### Effets aléatoires
+
+On observe:  
+
+- d'importantes différences entre les espèces dans la CE50 moyenne 
+- d'importantes différences entre les espèces dans la réponse à la température
+- qu'il n'y a pas de patron évident entre la sensibilité moyenne à la CE50 et la réponse à la température
+
+Ainsi, il est clair que la CE50 diffère d'une espèce à l'autre, ce qui est important à considérer dans un contexte écotoxicologique. Celles-ci ne réagissent pas de la même façon à la température. Pour certaines, une augmentation mène à une CE50 plus élevée, alors que pour d'autres, le patron est inversé.
+
+Finalement, ces différences entre espèces sont beaucoup plus importantes et contribuent à expliquer davantage de variation dans la CE50 que le type d'exposition durant l'expérience.
 
 # Informations complémentaires
 
